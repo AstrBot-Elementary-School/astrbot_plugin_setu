@@ -18,6 +18,7 @@ from ....application.session_config import (
 from ....application.session_config.keys import SessionConfigValidationError
 from ...permission_service import PermissionService
 from ...persistence import get_session_config_repo
+from ..feature_switches import feature_enabled, require_feature
 from ..session_identity import get_event_session_identity
 
 LEGACY_CONFIG_TOOL_NAMES = (
@@ -140,6 +141,7 @@ class SessionConfigCommandHandler:
         except (RuntimeError, ValueError, SessionConfigValidationError) as exc:
             yield event.plain_result(str(exc))
 
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_get_session_config(
         self, event: AstrMessageEvent, key: str = ""
     ) -> str:
@@ -153,6 +155,7 @@ class SessionConfigCommandHandler:
         except Exception as exc:
             return _json({"ok": False, "message": str(exc)})
 
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_set_session_config(
         self, event: AstrMessageEvent, key: str, value: str
     ) -> str:
@@ -183,6 +186,7 @@ class SessionConfigCommandHandler:
         except Exception as exc:
             return _json({"ok": False, "message": str(exc)})
 
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_clear_session_config(
         self, event: AstrMessageEvent, key: str = ""
     ) -> str:
@@ -325,6 +329,8 @@ def _json(payload: dict[str, Any]) -> str:
 
 def register_llm_tools() -> None:
     """Register unified session configuration LLM tools."""
+    if not feature_enabled("llm_tools"):
+        return
     _remove_tools(LEGACY_CONFIG_TOOL_NAMES)
     handler = SessionConfigCommandHandler()
     tools = [

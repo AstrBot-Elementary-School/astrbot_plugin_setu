@@ -39,6 +39,7 @@
 - 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
 - `delivery.doujinshi_send_mode` 选择本子文件格式（`pdf` 或 `archive`，默认 `pdf`）；`delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理，三者共用 `auto_revoke_delay`。OneBot/NapCat 本子普通文件发送若启用自动撤回，必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
 - 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
+- 新入口必须遵守全局功能开关；统一入口守卫与启动边界见 `docs/project/architecture.md`，开关语义见 `docs/usage/configuration.md`。
 
 ## 文档纪律
 

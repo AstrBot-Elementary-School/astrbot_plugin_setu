@@ -66,6 +66,42 @@
             }
         }
     },
+    "doujinshi": {
+        "description": "随机本子功能",
+        "type": "object",
+        "items": {
+            "enabled": {
+                "type": "bool",
+                "description": "启用随机本子",
+                "hint": "关闭后禁止本子命令与自然语言入口，不初始化本子服务。",
+                "default": true
+            }
+        }
+    },
+    "llm_tools": {
+        "description": "LLM 工具调用",
+        "type": "object",
+        "items": {
+            "enabled": {
+                "type": "bool",
+                "description": "启用 LLM 工具",
+                "hint": "关闭后不注册所有插件 LLM 工具，手动命令仍可用；重载插件后生效。",
+                "default": true
+            }
+        }
+    },
+    "triggers": {
+        "description": "消息触发方式",
+        "type": "object",
+        "items": {
+            "natural_language_enabled": {
+                "type": "bool",
+                "description": "启用自然语言触发",
+                "hint": "关闭后不响应正则自然语言入口，显式命令仍可用。",
+                "default": true
+            }
+        }
+    },
     "api": {
         "description": "提供者详情",
         "type": "object",
@@ -374,7 +410,7 @@
             "enabled": {
                 "type": "bool",
                 "description": "启用今日运势",
-                "hint": "是否启用今日运势功能。",
+                "hint": "全局运势总开关：关闭获取、刷新、管理命令及运势 LLM 工具，不初始化运势数据库和渲染器，也不预生成卡片。",
                 "default": true
             },
             "api_type": {
@@ -468,6 +504,7 @@
                                     "revoke_scheduled",
                                     "rate_limited",
                                     "config_not_loaded",
+                                    "feature_disabled",
                                     "error.invalid_request",
                                     "error.internal_server",
                                     "invalid_count",

@@ -10,6 +10,7 @@
 
 - 这是一个 AstrBot 随机图片与随机本子 PDF 插件，采用 DDD 分层。
 - 管理功能属于 Plugin Pages（统一 dashboard 页面，含会话配置和访问控制标签页）。
+- 新入口必须遵守全局功能开关；入口守卫与启动边界见 `docs/project/architecture.md`，开关语义见 `docs/usage/configuration.md`。
 
 主要目录：
 

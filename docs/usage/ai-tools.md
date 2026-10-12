@@ -2,6 +2,9 @@
 
 插件注册了以下 LLM 工具，供 AstrBot 的 AI agent 调用。
 
+`llm_tools.enabled=false` 时不注册下列工具，手动命令仍可用。`fortune.enabled=false` 时不注册运势工具。
+修改后重载插件生效；已有工具引用在执行入口也会检查开关。聊天内 `/session_config` 始终可用，其修改权限仍由管理员权限控制。
+
 ## Setu 工具
 
 | 工具名 | 作用 | 参数 | 权限 |

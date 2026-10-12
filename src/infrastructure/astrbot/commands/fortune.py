@@ -27,6 +27,7 @@ from ...providers import init_provider_from_config
 from ...sending import DirectSendStrategy, schedule_revoke
 from ...sending.platform_capabilities import is_onebot_like_platform
 from ..config import get_config, get_plugin_context
+from ..feature_switches import feature_enabled, require_feature
 from ..fortune_renderer import FortuneRenderer
 
 logger = get_logger()
@@ -43,10 +44,11 @@ class FortuneCommandHandler:
     """
 
     def __init__(self) -> None:
-        self._renderer = FortuneRenderer()
+        self._renderer = FortuneRenderer() if feature_enabled("fortune") else None
 
     # ==================== Command Handlers ====================
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def fortune_command(
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
@@ -125,6 +127,7 @@ class FortuneCommandHandler:
             logger.warning("[fortune] 未能登记今日运势自动撤回任务")
         return True
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def refresh_fortune_command(
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
@@ -153,6 +156,7 @@ class FortuneCommandHandler:
             if result := self._plain(event, text):
                 yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def refresh_group_fortune_command(
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
@@ -187,6 +191,7 @@ class FortuneCommandHandler:
             if result := self._plain(event, text):
                 yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def refresh_all_fortune_command(
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
@@ -215,6 +220,7 @@ class FortuneCommandHandler:
             if result := self._plain(event, text):
                 yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def enable_fortune_group_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -236,6 +242,7 @@ class FortuneCommandHandler:
         if result := self._plain(event, self._message("fortune_enabled_group_done")):
             yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def disable_fortune_group_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -257,6 +264,7 @@ class FortuneCommandHandler:
         if result := self._plain(event, self._message("fortune_disabled_group_done")):
             yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def block_fortune_user_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -279,6 +287,7 @@ class FortuneCommandHandler:
         if result := self._plain(event, text):
             yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def unblock_fortune_user_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -301,6 +310,7 @@ class FortuneCommandHandler:
         if result := self._plain(event, text):
             yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def trust_fortune_user_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -323,6 +333,7 @@ class FortuneCommandHandler:
         if result := self._plain(event, text):
             yield result
 
+    @require_feature("fortune", "今日运势", "enabled")
     async def untrust_fortune_user_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -347,6 +358,8 @@ class FortuneCommandHandler:
 
     # ==================== LLM Tool Handlers ====================
 
+    @require_feature("fortune", "今日运势", "enabled")
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_get_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for getting today's fortune."""
         config = get_config()
@@ -367,6 +380,8 @@ class FortuneCommandHandler:
         except Exception as e:
             return self._message("fortune_get_failed", error=e)
 
+    @require_feature("fortune", "今日运势", "enabled")
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_refresh_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing today's fortune."""
         has_perm, msg = PermissionService.require_admin(event)
@@ -387,6 +402,8 @@ class FortuneCommandHandler:
         except Exception as e:
             return self._message("fortune_refresh_failed", error=e)
 
+    @require_feature("fortune", "今日运势", "enabled")
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_refresh_group_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing group fortunes."""
         has_perm, msg = PermissionService.require_admin(event)
@@ -409,6 +426,8 @@ class FortuneCommandHandler:
         except Exception as e:
             return self._message("fortune_refresh_group_failed", error=e)
 
+    @require_feature("fortune", "今日运势", "enabled")
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_refresh_all_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing all fortunes."""
         has_perm, msg = PermissionService.require_super_user(event)
@@ -633,6 +652,10 @@ class FortuneCommandHandler:
 
 def register_llm_tools() -> None:
     """Register Fortune LLM tools."""
+    if not feature_enabled("llm_tools"):
+        return
+    if not feature_enabled("fortune"):
+        return
     _handler = FortuneCommandHandler()
     tools = [
         (

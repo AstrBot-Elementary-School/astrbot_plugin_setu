@@ -234,6 +234,18 @@ class HtmlCardConfig(BaseModel):
     card_gap: int = Field(default=6, ge=0, le=30)
 
 
+class FeatureConfig(BaseModel):
+    """Global feature switch, enabled by default for existing installations."""
+
+    enabled: bool = True
+
+
+class TriggerConfig(BaseModel):
+    """Natural-language routing; explicit commands remain available."""
+
+    natural_language_enabled: bool = True
+
+
 class FortuneConfig(BaseModel):
     """Fortune (Today's Luck) configuration."""
 
@@ -303,6 +315,7 @@ class MessagesConfig(BaseModel):
         "revoke_scheduled": "已设置自动撤回，将在 {revoke_delay} 秒后撤回。",
         "rate_limited": "你有一个请求正在处理中，请稍后再试~",
         "config_not_loaded": "配置未加载",
+        "feature_disabled": "{feature}功能已关闭，请联系管理员。",
         "error_invalid_request": "请求参数无效",
         "error_internal_server": "服务器内部错误",
         "invalid_count": "数量解析失败，图片数量必须在{min_count}-{max_count}之间",
@@ -345,6 +358,9 @@ class MessagesConfig(BaseModel):
         return patched
 
     message_overrides: list[MessageOverrideConfig] = Field(default_factory=list)
+    feature_disabled: MessageTextConfig = Field(
+        default_factory=lambda: MessageTextConfig(text="{feature}功能已关闭，请联系管理员。")
+    )
     fetching: MessagesFetchingConfig = Field(default_factory=MessagesFetchingConfig)
     found: MessagesFoundConfig = Field(default_factory=MessagesFoundConfig)
     send_failed: MessagesSendFailedConfig = Field(
@@ -526,6 +542,9 @@ class SetuPluginConfig(BaseModel):
     """
 
     setu_general: SetuGeneralConfig = Field(default_factory=SetuGeneralConfig)
+    doujinshi: FeatureConfig = Field(default_factory=FeatureConfig)
+    llm_tools: FeatureConfig = Field(default_factory=FeatureConfig)
+    triggers: TriggerConfig = Field(default_factory=TriggerConfig)
     delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
     html_card: HtmlCardConfig = Field(default_factory=HtmlCardConfig)
     fortune: FortuneConfig = Field(default_factory=FortuneConfig)

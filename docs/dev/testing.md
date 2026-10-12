@@ -2,6 +2,9 @@
 
 ## 基础命令
 
+功能开关的隔离回归可运行 `python tests/test_feature_switches.py -v`（依赖 Pydantic v2，不启动 AstrBot）。
+覆盖配置默认值、命令与工具禁用、自然语言路由、按需初始化及关闭功能后仍恢复撤回调度；它不能替代真实 AstrBot 插件加载验证。
+
 | 场景 | 工作目录 | 命令 |
 | --- | --- | --- |
 | Python 格式化 | AstrBot 根目录 | `uv run ruff format data/plugins/astrbot_plugin_setu` |

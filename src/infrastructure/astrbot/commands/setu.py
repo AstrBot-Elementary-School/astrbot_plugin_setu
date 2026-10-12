@@ -24,9 +24,9 @@ from ....domain.access_control.service import AccessControlService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
 from ... import get_access_control_repo, get_provider
+from ...doujinshi import DoujinshiService
 from ...persistence import get_session_config_repo
 from ...providers import init_provider_from_config
-from ...doujinshi import DoujinshiService
 from ...sending import (
     DirectSendStrategy,
     build_doujinshi_file_chain,
@@ -35,6 +35,7 @@ from ...sending import (
 from ...sending.platform_capabilities import is_onebot_like_platform
 from ...sending.revoke_scheduler import RecoverableRevokeScheduler
 from ..config import get_config, get_plugin_context
+from ..feature_switches import feature_enabled, require_feature
 from ..session_identity import get_event_session_identity
 
 logger = get_logger()
@@ -118,7 +119,9 @@ class SetuCommandHandler:
         revoke_scheduler: RecoverableRevokeScheduler | None = None,
     ) -> None:
         self._doujinshi_service = (
-            DoujinshiService(data_dir) if data_dir is not None else None
+            DoujinshiService(data_dir)
+            if data_dir is not None and feature_enabled("doujinshi")
+            else None
         )
         # 生命周期依赖在初始化时注入，避免热重载时读取到另一模块实例的全局单例。
         self._plugin_context = plugin_context
@@ -217,6 +220,7 @@ class SetuCommandHandler:
         finally:
             await _rate_limiter.release(event)
 
+    @require_feature("doujinshi", "随机本子", "enabled")
     async def random_doujinshi_command(
         self, event: AstrMessageEvent, *, tags: str = ""
     ) -> AsyncGenerator[Any, None]:
@@ -382,6 +386,7 @@ class SetuCommandHandler:
 
     # ==================== LLM Tool Handlers ====================
 
+    @require_feature("llm_tools", "LLM 工具", "enabled")
     async def _llm_get_setu_handler(
         self, event: AstrMessageEvent, count: int = 1, tags: list[str] | None = None
     ) -> str:
@@ -554,6 +559,8 @@ class SetuCommandHandler:
 
 def register_llm_tools() -> None:
     """Register Setu LLM tools."""
+    if not feature_enabled("llm_tools"):
+        return
     _handler = SetuCommandHandler()
     tools = [
         (

@@ -41,6 +41,7 @@ from .src.infrastructure.astrbot.commands import (
     unregister_session_config_llm_tools,
     unregister_setu_llm_tools,
 )
+from .src.infrastructure.astrbot.feature_switches import feature_enabled
 from .src.infrastructure.astrbot.session_config_api import (
     register_session_config_web_apis,
 )
@@ -149,6 +150,8 @@ async def _route_regex_command(
     fortune_handler: FortuneCommandHandler | None,
 ) -> AsyncGenerator[Any, None]:
     """把所有纯文本正则入口集中分发到对应命令处理器。"""
+    if not feature_enabled("triggers", "natural_language_enabled"):
+        return
     message = str(getattr(event, "message_str", "") or "").strip()
     if re.match(SETU_REGEX_PATTERN, message):
         if setu_handler is None:
@@ -254,8 +257,13 @@ class SetuPlugin(Star):
         self.context = context
         self._plugin_config = config
         self._fortune_pregenerate_task: asyncio.Task[None] | None = None
+        web_apis = getattr(self.context, "registered_web_apis", [])
+        previous_handlers = {id(api[1]) for api in web_apis}
         register_access_control_web_apis(self.context)
         register_session_config_web_apis(self.context)
+        self._web_api_handlers = {
+            id(api[1]) for api in web_apis if id(api[1]) not in previous_handlers
+        }
 
     async def initialize(self) -> None:
         global _setu_handler, _fortune_handler, _session_config_handler
@@ -269,7 +277,8 @@ class SetuPlugin(Star):
         init_provider_from_config(cfg)
 
         await init_access_control_repo(data_dir, raw_config)
-        await init_fortune_repo(data_dir)
+        if cfg.fortune.enabled:
+            await init_fortune_repo(data_dir)
         await init_session_config_repo(data_dir)
         await init_send_cache(
             data_dir,
@@ -293,9 +302,11 @@ class SetuPlugin(Star):
             )
 
         try:
-            register_setu_llm_tools()
-            register_fortune_llm_tools()
-            register_session_config_llm_tools()
+            if cfg.llm_tools.enabled:
+                register_setu_llm_tools()
+                if cfg.fortune.enabled:
+                    register_fortune_llm_tools()
+                register_session_config_llm_tools()
         except Exception as e:
             logger.warning("Failed to register LLM tools: %s", e)
 
@@ -330,6 +341,11 @@ class SetuPlugin(Star):
         clear_session_config_repo()
         await stop_revoke_scheduler()
         clear_send_cache()
+        web_apis = getattr(self.context, "registered_web_apis", [])
+        web_apis[:] = [
+            api for api in web_apis if id(api[1]) not in self._web_api_handlers
+        ]
+        self._web_api_handlers.clear()
 
         _setu_handler = None
         _fortune_handler = None

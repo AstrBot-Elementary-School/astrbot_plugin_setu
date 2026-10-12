@@ -32,6 +32,11 @@ tests/             # 单元与集成测试
 
 `main.py` 负责把 AstrBot 生命周期和命令接进来，`infrastructure/astrbot/` 负责具体适配。业务逻辑在 `application/` 和 `domain/`，不反向侵入入口。
 
+功能入口由 `infrastructure/astrbot/feature_switches.py` 统一拦截，命令和 LLM 工具在加锁、网络请求及数据修改前检查全局开关。
+启动时跳过禁用功能的服务、数据库、渲染器与工具注册；自然语言开关只限制正则路由；聊天内会话配置命令和 Web API 保持可用。
+撤回调度器始终初始化，关闭功能后仍恢复既有撤回任务。开关字段与行为见使用文档的“功能开关”。
+插件记录自身注册的 Web API handler，终止时从 Context 注册表清理；保留其他插件的接口。
+
 ## 核心运行链路
 
 ### 1. Setu 图片获取与发送
