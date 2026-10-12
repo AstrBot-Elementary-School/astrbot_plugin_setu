@@ -16,7 +16,7 @@ from astrbot.core.provider.register import llm_tools
 from ....application.session_config import SessionConfigService
 from ....application.setu.get_images import GetSetuImagesUseCase
 from ....application.setu.tag_resolution import (
-    resolve_user_tag_list,
+    resolve_image_request_tags,
     resolve_user_tags,
 )
 from ....domain.access_control import AccessPolicy
@@ -41,7 +41,10 @@ from ..session_identity import get_event_session_identity
 logger = get_logger()
 
 # Regex pattern directly in decorator (not in constants)
-SETU_REGEX_PATTERN = r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图$"
+SETU_REGEX_PATTERN = (
+    r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图"
+    r"(?P<flags>(?:\s+[rR]18)*)\s*$"
+)
 
 
 def _platform_name(event: AstrMessageEvent) -> str | None:
@@ -181,11 +184,13 @@ class SetuCommandHandler:
                 yield result
             return
 
-        tag_str = match.group(4).strip()
-        tags = resolve_user_tags(tag_str, getattr(config, "tag_alias", ""))
+        tag_str = f"{match.group(4)} {match.group('flags')}".strip()
+        tags, request_r18 = resolve_image_request_tags(
+            tag_str, getattr(config, "tag_alias", "")
+        )
 
         effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = self._mode_requires_r18(effective_mode)
+        is_r18 = request_r18 or self._mode_requires_r18(effective_mode)
 
         try:
             async for result in self._fetch_and_send_images(
@@ -365,10 +370,12 @@ class SetuCommandHandler:
                 yield result
             return
 
-        parsed_tags = resolve_user_tags(all_tags, getattr(config, "tag_alias", ""))
+        parsed_tags, request_r18 = resolve_image_request_tags(
+            all_tags, getattr(config, "tag_alias", "")
+        )
 
         effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = self._mode_requires_r18(effective_mode)
+        is_r18 = request_r18 or self._mode_requires_r18(effective_mode)
 
         try:
             async for result in self._fetch_and_send_images(
@@ -403,12 +410,13 @@ class SetuCommandHandler:
             init_provider_from_config(config)
             provider = get_provider()
             effective_mode = await self._get_effective_content_mode(event)
+            parsed_tags, request_r18 = resolve_image_request_tags(
+                tags or [], getattr(config, "tag_alias", "")
+            )
             request = SetuRequest.from_user_input(
                 count=count,
-                tags=resolve_user_tag_list(
-                    tags or [], getattr(config, "tag_alias", "")
-                ),
-                r18=self._mode_requires_r18(effective_mode),
+                tags=parsed_tags,
+                r18=request_r18 or self._mode_requires_r18(effective_mode),
                 exclude_ai=config.exclude_ai,
                 max_replenish_rounds=config.max_replenish_rounds,
             )

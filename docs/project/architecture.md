@@ -32,6 +32,8 @@ tests/             # 单元与集成测试
 
 `main.py` 负责把 AstrBot 生命周期和命令接进来，`infrastructure/astrbot/` 负责具体适配。业务逻辑在 `application/` 和 `domain/`，不反向侵入入口。
 
+图片命令、自然语言入口及 LLM 图片工具通过 `application/setu/tag_resolution.py` 的 `resolve_image_request_tags` 提取独立的 `r18` 标记，再进行普通标签解析与别名映射。标记仅覆盖本次图片请求的分级，不写入会话配置；本子和运势继续使用原有标签语义。
+
 功能入口由 `infrastructure/astrbot/feature_switches.py` 统一拦截，命令和 LLM 工具在加锁、网络请求及数据修改前检查全局开关。
 启动时跳过禁用功能的服务、数据库、渲染器与工具注册；自然语言开关只限制正则路由；聊天内会话配置命令和 Web API 保持可用。
 撤回调度器始终初始化，关闭功能后仍恢复既有撤回任务。开关字段与行为见使用文档的“功能开关”。

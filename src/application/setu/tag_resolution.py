@@ -2,9 +2,25 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from ...domain.setu import TagResolverService
+
+
+def resolve_image_request_tags(
+    raw_tags: str | Iterable[object], configured_aliases: str
+) -> tuple[list[str], bool]:
+    """提取图片请求的 r18 标记，再解析普通标签；不改变会话配置。"""
+    if isinstance(raw_tags, str):
+        tokens = re.split(r"[\s,，、]+", raw_tags.strip())
+    else:
+        tokens = [str(tag).strip() for tag in raw_tags]
+    r18 = any(token.casefold() == "r18" for token in tokens)
+    tags = [token for token in tokens if token.casefold() != "r18"]
+    if isinstance(raw_tags, str):
+        return resolve_user_tags(" ".join(tags), configured_aliases), r18
+    return resolve_user_tag_list(tags, configured_aliases), r18
 
 
 def resolve_user_tags(raw_tags: str, configured_aliases: str) -> list[str]:

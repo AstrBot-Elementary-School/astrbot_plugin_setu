@@ -4,10 +4,40 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from astrbot_plugin_setu.src.application.setu.tag_resolution import (
+    resolve_image_request_tags,
     resolve_user_tag_list,
     resolve_user_tags,
 )
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected_tags", "expected_r18"),
+    [
+        ("", [], False),
+        ("girl", ["少女"], False),
+        ("r18", [], True),
+        ("girl R18", ["少女"], True),
+        ("r18,girl，r18、cute", ["少女", "cute"], True),
+        ("girlr18 r180", ["girlr18", "r180"], False),
+        ("-r18", ["-r18"], False),
+        (["blue archive", "r18", "girl"], ["blue archive", "少女"], True),
+        (["white hair", "girl"], ["white hair", "少女"], False),
+    ],
+)
+def test_image_request_r18_marker(raw, expected_tags, expected_r18):
+    assert resolve_image_request_tags(raw, "少女=girl") == (
+        expected_tags,
+        expected_r18,
+    )
+
+
+def test_r18_marker_is_reserved_before_alias_resolution():
+    assert resolve_image_request_tags("r18", "普通标签=r18") == ([], True)
+    # 共用标签解析器仍允许本子将普通标签原样传入。
+    assert resolve_user_tags("r18", "") == ["r18"]
 
 
 class TestSetuTagAliasIntegration:

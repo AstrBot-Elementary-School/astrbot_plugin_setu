@@ -37,6 +37,7 @@
 - 所有用户可见提示必须走 `MessagesConfig` / `resolve_message()`，不要在 handler 内硬编码提示文案。
 - 随机本子由 `infrastructure/doujinshi/` 按配置生成 PDF 或 ZIP；所有平台统一发送普通 `File`，不再包装 `Nodes` 合并转发。OneBot/NapCat 若启用自动撤回，则在发送普通文件时取得消息 ID 并进入统一可恢复撤回队列。
 - 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
+- 图片请求通过共享解析器提取独立的 `r18` 标记；分级覆盖仅作用于本次请求，不能写入会话配置。
 - `delivery.doujinshi_send_mode` 选择本子文件格式（`pdf` 或 `archive`，默认 `pdf`）；`delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理，三者共用 `auto_revoke_delay`。OneBot/NapCat 本子普通文件发送若启用自动撤回，必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
 - 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
 - 新入口必须遵守全局功能开关；统一入口守卫与启动边界见 `docs/project/architecture.md`，开关语义见 `docs/usage/configuration.md`。

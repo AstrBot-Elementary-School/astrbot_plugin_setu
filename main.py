@@ -53,7 +53,10 @@ from .src.infrastructure.sending import (
 from .src.shared.send_cache import clear_send_cache, init_send_cache
 
 # Regex patterns for command triggers
-SETU_REGEX_PATTERN = r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图$"
+SETU_REGEX_PATTERN = (
+    r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图"
+    r"(?P<flags>(?:\s+[rR]18)*)\s*$"
+)
 DOUJINSHI_REGEX_PATTERN = r"^/?来\s*(?:一\s*)?份(?P<tags>.*?)本子$"
 FORTUNE_REGEX_PATTERN = r"^(?!/)(今日运势|jrys)$"
 REGEX_COMMAND_PATTERN = (

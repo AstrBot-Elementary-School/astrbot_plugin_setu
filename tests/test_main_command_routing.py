@@ -8,6 +8,7 @@ from astrbot_plugin_setu.main import (
     DOUJINSHI_REGEX_PATTERN,
     FORTUNE_REGEX_PATTERN,
     REGEX_COMMAND_PATTERN,
+    SETU_REGEX_PATTERN,
     _is_fortune_command_invocation,
     _route_regex_command,
     _resolve_fortune_refresh_target,
@@ -72,6 +73,31 @@ def test_combined_regex_pattern_matches_both_plain_command_families() -> None:
     assert re.match(REGEX_COMMAND_PATTERN, "来一份色图")
     assert re.match(REGEX_COMMAND_PATTERN, "来份本子")
     assert re.match(REGEX_COMMAND_PATTERN, "jrys")
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["来一张色图 r18", "来一张初音ミク r18 色图", "来一张色图 R18 r18"],
+)
+def test_regex_accepts_request_r18_marker(message):
+    from astrbot_plugin_setu.src.infrastructure.astrbot.commands.setu import (
+        SETU_REGEX_PATTERN as handler_pattern,
+    )
+
+    assert SETU_REGEX_PATTERN == handler_pattern
+    assert re.match(REGEX_COMMAND_PATTERN, message)
+
+
+@pytest.mark.asyncio
+async def test_regex_router_dispatches_request_with_r18_marker(mock_event):
+    mock_event.message_str = "来一张色图 r18"
+    results = [
+        result
+        async for result in _route_regex_command(
+            mock_event, _RegexHandler("setu"), None
+        )
+    ]
+    assert results == ["setu"]
 
 
 def test_doujinshi_regex_pattern_accepts_common_spacing() -> None:
