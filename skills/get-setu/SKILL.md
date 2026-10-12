@@ -41,7 +41,7 @@ Global delivery settings such as `platform_transports` NapCat options, send cach
 
 ## Choosing Tools
 
-For image requests, extract count and tags from the user. Default to `count=1` and `tags=[]` when unspecified. Preserve meaningful tags such as `白丝`, `猫耳`, `blue archive`, or `long_hair`. If the user explicitly includes the standalone marker `r18`, keep it as a separate item in `tags`: the plugin removes it before calling the image API and requests R18 for that request only. Otherwise, the plugin uses the current effective `setu.content_mode`. Do not pass a separate R18 parameter or change session settings for a one-time request.
+For image requests, extract count and tags from the user. Default to `count=1` and `tags=[]` when unspecified. Preserve meaningful tags such as `白丝`, `猫耳`, `blue archive`, or `long_hair`. If the user explicitly includes the standalone marker `r18`, keep it as a separate item in `tags`: the plugin removes it before calling the image API and requests R18 for that request only, provided the effective content mode is `r18` or `mix`. In `sfw` mode, the request is rejected; do not change session settings or retry through another tool to bypass the restriction. Otherwise, the plugin uses the current effective `setu.content_mode`. Do not pass a separate R18 parameter or change session settings for a one-time request.
 
 For settings questions, call `get_session_config`. If the user asks about one setting, pass the specific key. If they ask for all settings, omit `key`. The tool returns JSON; read `ok`, then summarize `data.effective`, `data.override`, and `data.global` as needed.
 

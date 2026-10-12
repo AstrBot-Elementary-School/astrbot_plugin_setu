@@ -316,6 +316,7 @@ class MessagesConfig(BaseModel):
         "rate_limited": "你有一个请求正在处理中，请稍后再试~",
         "config_not_loaded": "配置未加载",
         "feature_disabled": "{feature}功能已关闭，请联系管理员。",
+        "r18_not_allowed": "当前会话仅允许全年龄图片，无法请求 R18 内容。",
         "error_invalid_request": "请求参数无效",
         "error_internal_server": "服务器内部错误",
         "invalid_count": "数量解析失败，图片数量必须在{min_count}-{max_count}之间",
@@ -359,7 +360,14 @@ class MessagesConfig(BaseModel):
 
     message_overrides: list[MessageOverrideConfig] = Field(default_factory=list)
     feature_disabled: MessageTextConfig = Field(
-        default_factory=lambda: MessageTextConfig(text="{feature}功能已关闭，请联系管理员。")
+        default_factory=lambda: MessageTextConfig(
+            text="{feature}功能已关闭，请联系管理员。"
+        )
+    )
+    r18_not_allowed: MessageTextConfig = Field(
+        default_factory=lambda: MessageTextConfig(
+            text="当前会话仅允许全年龄图片，无法请求 R18 内容。"
+        )
     )
     fetching: MessagesFetchingConfig = Field(default_factory=MessagesFetchingConfig)
     found: MessagesFoundConfig = Field(default_factory=MessagesFoundConfig)

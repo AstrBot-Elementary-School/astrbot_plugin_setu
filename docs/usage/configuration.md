@@ -125,6 +125,7 @@ NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 Na
 
 访问控制 Web API 错误提示也可通过 `message_overrides` 覆盖，内置键为 `error.invalid_request` 和 `error.internal_server`。
 自动撤回成功调度后的提示 key 为 `revoke_scheduled`，占位符支持 `{count}`、`{revoke_delay}`、`{scope}`、`{r18}`，默认启用。
+`r18_not_allowed` 用于有效模式为 `sfw` 时拒绝单次 `r18` 图片请求，无占位符；支持通过 `message_overrides` 自定义或静默关闭提示，关闭提示不会允许该请求。
 
 ## 访问控制配置
 

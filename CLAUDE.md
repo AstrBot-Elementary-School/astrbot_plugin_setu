@@ -39,6 +39,7 @@
 - 随机本子 PDF 由 `infrastructure/doujinshi/` 生成；OneBot/NapCat 使用 `Nodes` 合并转发并按消息 ID 进入统一可恢复撤回，其他平台直接发送 `File`。
 - 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
 - 图片请求通过共享解析器提取独立的 `r18` 标记；分级覆盖仅作用于本次请求，不能写入会话配置。
+- 单次 `r18` 标记必须服从有效内容模式；`sfw` 下拒绝，不能绕过管理员设置的分级。
 - `delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理；三者共用 `auto_revoke_delay`，本子合并转发必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
 - 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
 

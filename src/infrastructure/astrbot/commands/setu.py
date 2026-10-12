@@ -190,7 +190,11 @@ class SetuCommandHandler:
         )
 
         effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = request_r18 or self._mode_requires_r18(effective_mode)
+        is_r18 = self._resolve_request_r18(effective_mode, request_r18)
+        if is_r18 is None:
+            if result := self._plain(event, self._message("r18_not_allowed")):
+                yield result
+            return
 
         try:
             async for result in self._fetch_and_send_images(
@@ -375,7 +379,11 @@ class SetuCommandHandler:
         )
 
         effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = request_r18 or self._mode_requires_r18(effective_mode)
+        is_r18 = self._resolve_request_r18(effective_mode, request_r18)
+        if is_r18 is None:
+            if result := self._plain(event, self._message("r18_not_allowed")):
+                yield result
+            return
 
         try:
             async for result in self._fetch_and_send_images(
@@ -407,16 +415,19 @@ class SetuCommandHandler:
             return msg
 
         try:
-            init_provider_from_config(config)
-            provider = get_provider()
             effective_mode = await self._get_effective_content_mode(event)
             parsed_tags, request_r18 = resolve_image_request_tags(
                 tags or [], getattr(config, "tag_alias", "")
             )
+            is_r18 = self._resolve_request_r18(effective_mode, request_r18)
+            if is_r18 is None:
+                return self._message("r18_not_allowed")
+            init_provider_from_config(config)
+            provider = get_provider()
             request = SetuRequest.from_user_input(
                 count=count,
                 tags=parsed_tags,
-                r18=request_r18 or self._mode_requires_r18(effective_mode),
+                r18=is_r18,
                 exclude_ai=config.exclude_ai,
                 max_replenish_rounds=config.max_replenish_rounds,
             )
@@ -501,6 +512,13 @@ class SetuCommandHandler:
         except Exception as exc:
             logger.debug("Failed to read session content mode: %s", exc)
             return global_mode
+
+    @staticmethod
+    def _resolve_request_r18(mode: str, requested_r18: bool) -> bool | None:
+        """单次 R18 标记只能在管理员允许 R18 的有效模式内选择。"""
+        if requested_r18:
+            return True if mode in {"r18", "mix"} else None
+        return SetuCommandHandler._mode_requires_r18(mode)
 
     @staticmethod
     def _mode_requires_r18(mode: str) -> bool:

@@ -517,6 +517,7 @@
                                     "no_result",
                                     "empty_payload",
                                     "r18_docx_failed",
+                                    "r18_not_allowed",
                                     "fortune_group_only",
                                     "fortune_missing_user_id",
                                     "fortune_get_failed",
