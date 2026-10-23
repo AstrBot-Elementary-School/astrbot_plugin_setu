@@ -5,6 +5,7 @@
 ## 目录
 
 - [`setup.md`](./setup.md): 环境准备、常用目录、运行与调试入口
+- [PR 合并检查](./testing.md#pr-合并检查): PR 模板校验、插件生命周期测试及触发范围
 - [`testing.md`](./testing.md): lint、pytest、回归检查建议
 - [`contributing.md`](./contributing.md): 贡献流程、改动边界与提交流程
 - [`engineering-principles.md`](./engineering-principles.md): 工具使用、错误处理、保护逻辑与前端验证原则
