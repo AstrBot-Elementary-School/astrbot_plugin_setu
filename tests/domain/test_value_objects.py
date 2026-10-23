@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from astrbot_plugin_setu.src.application.setu import ImagePayload
 from astrbot_plugin_setu.src.domain.access_control import AccessPolicy
 from astrbot_plugin_setu.src.domain.fortune import FortuneResult, FortuneSeed
@@ -63,33 +62,20 @@ class TestImagePayload:
 
 
 class TestAccessPolicy:
-    """Test AccessPolicy value object."""
+    def test_unrestricted(self) -> None:
+        assert AccessPolicy().allows(None)
 
-    def test_for_user(self) -> None:
-        """Test creating policy for user."""
-        policy = AccessPolicy.for_user("user123", "blacklist")
-        assert policy.user_id == "user123"
-        assert policy.group_id is None
-        assert policy.user_mode == "blacklist"
-        assert policy.group_mode == "none"
+    def test_missing_sid_cannot_bypass_restrictions(self) -> None:
+        assert not AccessPolicy(mode="blacklist").allows(None)
+        assert not AccessPolicy(mode="blacklist").allows("123")
+        assert not AccessPolicy(mode="whitelist").allows(None)
 
-    def test_for_group(self) -> None:
-        """Test creating policy for group."""
-        policy = AccessPolicy.for_group("group456", "whitelist")
-        assert policy.user_id is None
-        assert policy.group_id == "group456"
-        assert policy.user_mode == "none"
-        assert policy.group_mode == "whitelist"
-
-    def test_for_session(self) -> None:
-        """Test creating policy for full session."""
-        policy = AccessPolicy.for_session(
-            "user123", "group456", "blacklist", "whitelist"
-        )
-        assert policy.user_id == "user123"
-        assert policy.group_id == "group456"
-        assert policy.user_mode == "blacklist"
-        assert policy.group_mode == "whitelist"
+    def test_exact_sid(self) -> None:
+        sid = "bot:GroupMessage:123"
+        policy = AccessPolicy(mode="blacklist", blocked_sids=(sid,))
+        assert not policy.allows(sid)
+        assert policy.allows("bot:FriendMessage:123")
+        assert policy.allows("other:GroupMessage:123")
 
 
 class TestFortuneSeed:

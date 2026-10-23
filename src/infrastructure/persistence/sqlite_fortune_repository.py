@@ -56,6 +56,7 @@ class SQLiteFortuneRepo(FortuneRepository):
                         img_url   TEXT,
                         last_view_date TEXT,
                         group_id  TEXT,
+                        session_id TEXT,
                         PRIMARY KEY (user_id, date_str)
                     )
                     """
@@ -89,6 +90,10 @@ class SQLiteFortuneRepo(FortuneRepository):
             )
             await db.commit()
 
+        if "session_id" not in column_names:
+            await db.execute("ALTER TABLE fortune_data ADD COLUMN session_id TEXT")
+            await db.commit()
+
     def _row_to_record(
         self, row: tuple, user_id: str, username: str, date_str: str
     ) -> FortuneRecord:
@@ -107,6 +112,7 @@ class SQLiteFortuneRepo(FortuneRepository):
             img_url=row[6],
             last_view_date=row[7] if len(row) > 7 else date_str,
             group_id=row[8] if len(row) > 8 else None,
+            session_id=row[10] if len(row) > 10 else None,
         )
 
     async def get_today_fortune(
@@ -118,7 +124,7 @@ class SQLiteFortuneRepo(FortuneRepository):
         async with self._db_lock:
             async with aiosqlite.connect(str(self._db_path)) as db:
                 cursor = await db.execute(
-                    "SELECT title, stars, desc_text, extra, theme, image_cached, img_url, last_view_date, group_id, username "
+                    "SELECT title, stars, desc_text, extra, theme, image_cached, img_url, last_view_date, group_id, username, session_id "
                     "FROM fortune_data WHERE user_id = ? AND date_str = ?",
                     (request.user_id, request.date_str),
                 )
@@ -138,8 +144,8 @@ class SQLiteFortuneRepo(FortuneRepository):
                 async with aiosqlite.connect(str(self._db_path)) as db:
                     await db.execute(
                         "INSERT OR REPLACE INTO fortune_data "
-                        "(user_id, username, date_str, title, stars, desc_text, extra, theme, image_cached, img_url, last_view_date, group_id) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "(user_id, username, date_str, title, stars, desc_text, extra, theme, image_cached, img_url, last_view_date, group_id, session_id) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             record.user_id,
                             record.username,
@@ -153,6 +159,7 @@ class SQLiteFortuneRepo(FortuneRepository):
                             record.img_url,
                             record.last_view_date,
                             record.group_id,
+                            record.session_id,
                         ),
                     )
                     await db.commit()
@@ -248,7 +255,7 @@ class SQLiteFortuneRepo(FortuneRepository):
                     """
                     SELECT user_id,
                            COALESCE(NULLIF(username, ''), user_id) AS username,
-                           group_id
+                           group_id, session_id
                     FROM fortune_data
                     WHERE COALESCE(last_view_date, date_str) >= ?
                     ORDER BY user_id,
@@ -262,7 +269,7 @@ class SQLiteFortuneRepo(FortuneRepository):
 
         requests: list[FortuneGenerationRequest] = []
         seen: set[str] = set()
-        for user_id, username, group_id in rows:
+        for user_id, username, group_id, session_id in rows:
             if user_id in seen:
                 continue
             seen.add(user_id)
@@ -272,6 +279,7 @@ class SQLiteFortuneRepo(FortuneRepository):
                     username=str(username or user_id),
                     date_str=target_date,
                     group_id=str(group_id) if group_id else None,
+                    session_id=str(session_id) if session_id else None,
                 )
             )
         return requests

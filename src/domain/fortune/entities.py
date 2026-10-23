@@ -79,6 +79,7 @@ class FortuneRecord:
     img_url: str | None
     last_view_date: str
     group_id: str | None = None
+    session_id: str | None = None
 
     @property
     def max_stars(self) -> int:
@@ -117,6 +118,7 @@ class FortuneRecord:
             img_url=self.img_url,
             last_view_date=last_view_date,
             group_id=self.group_id,
+            session_id=self.session_id,
         )
 
     def with_refreshed_data(
@@ -146,6 +148,7 @@ class FortuneRecord:
             img_url=None,
             last_view_date=self.last_view_date,
             group_id=self.group_id,
+            session_id=self.session_id,
         )
 
     @classmethod
@@ -161,6 +164,7 @@ class FortuneRecord:
         extra_message: str,
         theme_color: str,
         group_id: str | None = None,
+        session_id: str | None = None,
     ) -> FortuneRecord:
         """Create a new fortune record with defaults for image fields."""
         return cls(
@@ -176,6 +180,7 @@ class FortuneRecord:
             img_url=None,
             last_view_date=date_str,
             group_id=group_id,
+            session_id=session_id,
         )
 
     def with_image_cache(self, img_url: str | None) -> FortuneRecord:
@@ -200,6 +205,7 @@ class FortuneRecord:
             img_url=img_url,
             last_view_date=self.last_view_date,
             group_id=self.group_id,
+            session_id=self.session_id,
         )
 
     def with_presentation(
@@ -207,6 +213,7 @@ class FortuneRecord:
         *,
         username: str,
         group_id: str | None,
+        session_id: str | None = None,
         invalidate_image_cache: bool = False,
     ) -> FortuneRecord:
         """Return new record with current display fields."""
@@ -223,6 +230,7 @@ class FortuneRecord:
             img_url=None if invalidate_image_cache else self.img_url,
             last_view_date=self.last_view_date,
             group_id=group_id,
+            session_id=session_id,
         )
 
 
@@ -337,10 +345,15 @@ class FortuneGenerationRequest:
     username: str
     date_str: str
     group_id: str | None = None
+    session_id: str | None = None
 
     @classmethod
     def for_today(
-        cls, user_id: str, username: str, group_id: str | None = None
+        cls,
+        user_id: str,
+        username: str,
+        group_id: str | None = None,
+        session_id: str | None = None,
     ) -> FortuneGenerationRequest:
         """Create request for today's fortune.
 
@@ -353,4 +366,4 @@ class FortuneGenerationRequest:
             New FortuneGenerationRequest
         """
         today_str = date.today().isoformat()
-        return cls(user_id, username, today_str, group_id)
+        return cls(user_id, username, today_str, group_id, session_id)

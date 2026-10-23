@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from astrbot_plugin_setu.src.infrastructure.config import heal_astrbot_plugin_config
 from astrbot_plugin_setu.src.shared.config import (
-    MessageOverrideConfig,
-    MessagesConfig,
     SetuPluginConfig,
     should_auto_revoke,
 )
+from pydantic import ValidationError
 
 
 def test_provider_config_accepts_empty_aspect_ratio(sample_config_dict) -> None:
@@ -89,32 +86,7 @@ def test_auto_revoke_scope_validation(sample_config_dict) -> None:
         SetuPluginConfig(**invalid)
 
 
-def test_message_defaults_are_enabled_with_non_empty_text() -> None:
-    messages = MessagesConfig()
-    dumped = messages.model_dump()
-
-    for key, value in dumped.items():
-        if key == "message_overrides":
-            continue
-        assert value["enabled"] is True, key
-        assert value["text"].strip(), key
-
-
-def test_message_override_template_default_is_enabled_with_text() -> None:
-    override = MessageOverrideConfig()
-
-    assert override.message_key == "fetching"
-    assert override.enabled is True
-    assert override.text == "正在获取图片，请稍候..."
-
-
-def test_message_send_failed_enabled_default_true() -> None:
-    config = SetuPluginConfig()
-    assert config.msg_send_failed_enabled is True
-    assert config.resolve_message("send_failed") == "图片发送失败，请稍后再试。"
-
-
-def test_message_defaults_fill_text_when_message_object_omits_text() -> None:
+def test_legacy_message_objects_do_not_change_builtin_text() -> None:
     config = SetuPluginConfig(
         messages={
             "fetch_failed": {"enabled": True},
@@ -129,7 +101,7 @@ def test_message_defaults_fill_text_when_message_object_omits_text() -> None:
     )
 
 
-def test_doujinshi_message_defaults_support_overrides() -> None:
+def test_doujinshi_messages_ignore_legacy_overrides() -> None:
     config = SetuPluginConfig(messages={"doujinshi_fetching": {"enabled": True}})
 
     assert (
@@ -145,7 +117,7 @@ def test_doujinshi_message_defaults_support_overrides() -> None:
 def test_resolve_message_supports_placeholders(sample_config_dict) -> None:
     config_dict = sample_config_dict.copy()
     config_dict["messages"] = {
-        **sample_config_dict["messages"],
+        **sample_config_dict.get("messages", {}),
         "max_count_exceeded": {
             "enabled": True,
             "text": "一次最多只能获取{max_count}张哦~",
@@ -156,21 +128,6 @@ def test_resolve_message_supports_placeholders(sample_config_dict) -> None:
     text = config.resolve_message("max_count_exceeded", max_count=7)
 
     assert text == "一次最多只能获取7张哦~"
-
-
-def test_format_found_message_normalizes_bool_r18_placeholder(
-    sample_config_dict,
-) -> None:
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict["messages"],
-        "found": {"enabled": True, "text": "r18={r18}"},
-    }
-    config = SetuPluginConfig(**config_dict)
-
-    assert config.format_found_message(1, r18=True) == "r18=是"
-    assert config.format_found_message(1, r18=False) == "r18=否"
-    assert config.format_found_message(1, r18="R18") == "r18=R18"
 
 
 def test_config_healer_migrates_legacy_auto_revoke_scope() -> None:
@@ -254,59 +211,17 @@ def test_config_healer_migrates_legacy_doujinshi_cleanup_delay() -> None:
     assert changes
 
 
-def test_config_healer_migrates_legacy_session_template_revoke_scope() -> None:
-    healed, changes = heal_astrbot_plugin_config(
-        {"session_configs": [{"session_id": "g1", "auto_revoke_r18": "y"}]},
-        {},
-    )
-
-    assert healed["session_configs"][0] == {
-        "session_id": "g1",
-        "auto_revoke_scope": "r18",
-    }
-    assert changes
-
-
-def test_resolve_message_respects_enabled_toggle(sample_config_dict) -> None:
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict["messages"],
-        "fetch_failed": {"enabled": False, "text": "X"},
-    }
-    config = SetuPluginConfig(**config_dict)
-
-    assert config.resolve_message("fetch_failed") is None
-
-
 def test_resolve_message_supports_dotted_builtin_error_keys(
     sample_config_dict,
 ) -> None:
     config_dict = sample_config_dict.copy()
     config_dict["messages"] = {
-        **sample_config_dict["messages"],
+        **sample_config_dict.get("messages", {}),
         "error_invalid_request": {"enabled": True, "text": "请求参数无效"},
     }
     config = SetuPluginConfig(**config_dict)
 
     assert config.resolve_message("error.invalid_request") == "请求参数无效"
-
-
-def test_message_template_override_takes_precedence(sample_config_dict) -> None:
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict["messages"],
-        "message_overrides": [
-            {
-                "__template_key": "message",
-                "message_key": "max_count_exceeded",
-                "enabled": True,
-                "text": "最多 {max_count} 张",
-            }
-        ],
-    }
-    config = SetuPluginConfig(**config_dict)
-
-    assert config.resolve_message("max_count_exceeded", max_count=3) == "最多 3 张"
 
 
 def test_provider_template_override_takes_precedence(sample_config_dict) -> None:
@@ -366,7 +281,7 @@ def test_delivery_platform_transport_template_takes_precedence(
     config = SetuPluginConfig(**config_dict)
 
     assert config.napcat_stream_mode == "always"
-    assert config.napcat_stream_chunk_kb == 512
+    assert config.napcat_stream_chunk_kb == 64
     assert config.napcat_local_file_mode == "fallback"
     assert config.napcat_local_file_allowed_roots == ["/AstrBot/data"]
 
@@ -383,7 +298,7 @@ def test_delivery_legacy_napcat_fields_remain_supported(sample_config_dict) -> N
     config = SetuPluginConfig(**config_dict)
 
     assert config.napcat_stream_mode == "disabled"
-    assert config.napcat_stream_chunk_kb == 256
+    assert config.napcat_stream_chunk_kb == 64
     assert config.napcat_local_file_mode == "always"
     assert config.napcat_local_file_allowed_roots == ["/legacy/shared"]
 
@@ -471,3 +386,88 @@ def test_legacy_auto_handle_send_failure_is_ignored(sample_config_dict) -> None:
     config = SetuPluginConfig(**config_dict)
 
     assert not hasattr(config.delivery, "auto_handle_send_failure")
+
+
+def test_retired_source_options_do_not_affect_runtime() -> None:
+    config = SetuPluginConfig(
+        setu_general={"multi_api_strategy": "random"}, fortune={"api_type": "atri"}
+    )
+    assert not hasattr(config.setu_general, "multi_api_strategy")
+    assert not hasattr(config.fortune, "api_type")
+    assert not hasattr(config, "fortune_api_type")
+    assert config.html_card_strategy == "fallback"
+
+
+def test_layout_conditions_preserve_hidden_values() -> None:
+    import json
+    from pathlib import Path
+
+    schema = json.loads(
+        (Path(__file__).resolve().parents[2] / "_conf_schema.json").read_text()
+    )
+    raw = {
+        "delivery": {"compress_enabled": False, "compress_max_mb": 9},
+        "fortune": {"enabled": False, "tags": "少女", "auto_refresh": False},
+        "safety": [
+            {
+                "__template_key": "setu",
+                "mode": "blacklist",
+                "blocked_sids": ["bot:GroupMessage:123"],
+                "whitelist_sids": ["bot:GroupMessage:456"],
+            }
+        ],
+        "session_configs": [
+            {
+                "__template_key": "fortune",
+                "session_id": "bot:GroupMessage:123",
+                "override_tags": False,
+                "tags": "可爱",
+            }
+        ],
+    }
+    healed, _ = heal_astrbot_plugin_config(raw, schema)
+    config = SetuPluginConfig(**healed)
+    assert config.compress_max_mb == 9
+    assert config.fortune.tags == "少女"
+    assert not config.fortune.auto_refresh
+    assert config.safety.root[0].whitelist_sids == ["bot:GroupMessage:456"]
+    assert config.session_configs[0].tags == "可爱"
+    assert config.html_card_strategy == "fallback"
+    assert "html_card" not in healed
+
+
+def test_schema_layout_and_no_emoji_markers() -> None:
+    import json
+    import re
+    from pathlib import Path
+
+    schema = json.loads(
+        (Path(__file__).resolve().parents[2] / "_conf_schema.json").read_text()
+    )
+    assert [
+        item["description"] for item in schema.values() if not item.get("invisible")
+    ] == [
+        "图片获取",
+        "发送与撤回",
+        "今日运势",
+        "会话设置",
+        "访问控制",
+        "图片来源高级设置",
+    ]
+    assert schema["setu_general"]["items"]["tag_alias_templates"]["condition"] == {
+        "show_advanced": True
+    }
+    assert schema["delivery"]["items"]["compress_max_mb"]["condition"] == {
+        "compress_enabled": True,
+        "show_advanced": True,
+    }
+    assert schema["fortune"]["items"]["tags"]["condition"] == {"enabled": True}
+    assert schema["session_configs"]["templates"]["fortune"]["items"]["tags"][
+        "condition"
+    ] == {"override_tags": True}
+    for rule in schema["safety"]["templates"].values():
+        assert rule["items"]["blocked_sids"]["condition"] == {"mode": "blacklist"}
+        assert rule["items"]["whitelist_sids"]["condition"] == {"mode": "whitelist"}
+    text = json.dumps(schema, ensure_ascii=False)
+    assert "obvious_hint" not in text
+    assert not re.search("[\U0001f000-\U0001faff\u2600-\u27bf\u203c\ufe0f]", text)

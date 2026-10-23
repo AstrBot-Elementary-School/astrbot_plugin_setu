@@ -192,9 +192,37 @@ def heal_astrbot_plugin_config(
 
     changes: list[str] = []
     aliased = apply_legacy_config_aliases(raw_config, changes)
+    for key in ("messages", "cache", "fortune_session_configs"):
+        if key in aliased:
+            aliased.pop(key)
+            record_config_heal(changes, key, "removed retired configuration")
+    for section, keys in {
+        "setu_general": ("max_replenish_rounds", "multi_api_strategy"),
+        "fortune": ("api_type",),
+        "html_card": ("card_padding", "card_gap", "mode"),
+        "delivery": ("napcat_stream_chunk_kb",),
+    }.items():
+        value = aliased.get(section)
+        if isinstance(value, dict):
+            for key in keys:
+                if key in value:
+                    value.pop(key)
+                    record_config_heal(
+                        changes, f"{section}.{key}", "removed retired configuration"
+                    )
     normalized = _normalize_schema_value(
         aliased, {"type": "object", "items": schema}, "", changes
     )
+    # The nullable schema default distinguishes a missing new key from an explicit fallback.
+    delivery = normalized.get("delivery")
+    if (
+        isinstance(delivery, dict)
+        and "html_card_strategy" in delivery
+        and delivery["html_card_strategy"] is None
+    ):
+        delivery["html_card_strategy"] = "fallback"
+        record_config_heal(changes, "delivery.html_card_strategy", "applied default")
+    normalized.pop("html_card", None)
     if normalized == raw_config:
         changes.clear()
     return normalized, changes

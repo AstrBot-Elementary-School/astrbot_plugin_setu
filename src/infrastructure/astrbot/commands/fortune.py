@@ -11,7 +11,7 @@ import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent
 from astrbot.core.provider.register import llm_tools
 
-from ....domain.access_control import AccessPolicy
+from ....application.session_config import SessionConfigService
 from ....domain.access_control.service import AccessControlService
 from ....domain.fortune import (
     FortuneGenerationRequest,
@@ -28,6 +28,7 @@ from ...sending import DirectSendStrategy, schedule_revoke
 from ...sending.platform_capabilities import is_onebot_like_platform
 from ..config import get_config, get_plugin_context
 from ..fortune_renderer import FortuneRenderer
+from ..session_identity import get_event_session_identity
 
 logger = get_logger()
 
@@ -215,136 +216,6 @@ class FortuneCommandHandler:
             if result := self._plain(event, text):
                 yield result
 
-    async def enable_fortune_group_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /开启运势 command (enable Fortune for current group)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        group_id = event.get_group_id()
-        if not group_id:
-            if result := self._plain(event, self._message("fortune_group_only")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_blocked_group(str(group_id))
-        if result := self._plain(event, self._message("fortune_enabled_group_done")):
-            yield result
-
-    async def disable_fortune_group_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /关闭运势 command (disable Fortune for current group)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        group_id = event.get_group_id()
-        if not group_id:
-            if result := self._plain(event, self._message("fortune_group_only")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_blocked_group(str(group_id))
-        if result := self._plain(event, self._message("fortune_disabled_group_done")):
-            yield result
-
-    async def block_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /拉黑运势用户 command (add user to Fortune blacklist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip() or event.get_sender_id()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_blocked_user(str(target_id))
-        text = self._message("fortune_block_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def unblock_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /解除运势拉黑 command (remove user from Fortune blacklist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_blocked_user(str(target_id))
-        text = self._message("fortune_unblock_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def trust_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /信任运势用户 command (add user to Fortune whitelist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip() or event.get_sender_id()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_whitelist_user(str(target_id))
-        text = self._message("fortune_trust_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def untrust_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /取消运势信任 command (remove user from Fortune whitelist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_whitelist_user(str(target_id))
-        text = self._message("fortune_untrust_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
     # ==================== LLM Tool Handlers ====================
 
     async def _llm_get_fortune(self, event: AstrMessageEvent) -> str:
@@ -437,30 +308,9 @@ class FortuneCommandHandler:
         service = FortuneService(repository=repo)
         access_repo = get_access_control_repo()
         access_service = AccessControlService(access_repo)
-        modes = access_repo.get_modes()
 
         async def can_pregenerate(request: FortuneGenerationRequest) -> bool:
-            policy = AccessPolicy.for_session(
-                user_id=request.user_id,
-                group_id=request.group_id,
-                user_mode=modes.get(
-                    "fortune_user_access_control_mode",
-                    config.fortune_user_access_control_mode if config else "none",
-                ),
-                group_mode=modes.get(
-                    "fortune_group_access_control_mode",
-                    config.fortune_group_access_control_mode if config else "none",
-                ),
-            )
-            allowed, reason = await access_service.check_fortune_access(policy)
-            if not allowed:
-                logger.debug(
-                    "[fortune] skip pregeneration by access-control: user=%s, group=%s, reason=%s",
-                    request.user_id,
-                    request.group_id or "-",
-                    reason or "-",
-                )
-            return allowed
+            return access_service.check_access("fortune", request.session_id)
 
         records = await service.pregenerate_active_user_records(
             days=days,
@@ -487,27 +337,11 @@ class FortuneCommandHandler:
     # ==================== Helper Methods ====================
 
     async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
-        """Check if user/group has access to Fortune feature."""
-        user_id = event.get_sender_id()
-        group_id = event.get_group_id()
-
-        repo = get_access_control_repo()
-        modes = repo.get_modes()
-        policy = AccessPolicy.for_session(
-            user_id=user_id,
-            group_id=group_id,
-            user_mode=modes.get(
-                "fortune_user_access_control_mode",
-                config.fortune_user_access_control_mode if config else "none",
-            ),
-            group_mode=modes.get(
-                "fortune_group_access_control_mode",
-                config.fortune_group_access_control_mode if config else "none",
-            ),
+        """Check access using the complete conversation SID."""
+        allowed = AccessControlService(get_access_control_repo()).check_access(
+            "fortune", get_event_session_identity(event).session_id
         )
-        service = AccessControlService(repo)
-        allowed, reason = await service.check_fortune_access(policy)
-        return allowed, reason or ""
+        return allowed, "" if allowed else self._message("access_denied")
 
     def _build_fortune_request(
         self, event: AstrMessageEvent
@@ -527,6 +361,7 @@ class FortuneCommandHandler:
             user_id=user_id,
             username=username,
             group_id=str(group_id) if group_id else None,
+            session_id=get_event_session_identity(event).session_id,
         )
 
     def _format_fortune(self, result: FortuneRecord) -> str:
@@ -552,7 +387,7 @@ class FortuneCommandHandler:
         if cached:
             return cached
 
-        bg_bytes, img_url = await self._get_fortune_background_image()
+        bg_bytes, img_url = await self._get_fortune_background_image(record.session_id)
         if not bg_bytes:
             return None
 
@@ -578,7 +413,9 @@ class FortuneCommandHandler:
             logger.warning("[fortune] failed to render fortune image: %s", exc)
             return None
 
-    async def _get_fortune_background_image(self) -> tuple[bytes | None, str | None]:
+    async def _get_fortune_background_image(
+        self, session_id: str | None = None
+    ) -> tuple[bytes | None, str | None]:
         config = get_config()
         if not config:
             return None, None
@@ -586,8 +423,9 @@ class FortuneCommandHandler:
             init_provider_from_config(config)
             provider = get_provider()
 
-            tags = [t.strip() for t in config.fortune.tags.split(",") if t.strip()]
-            mode = config.fortune.content_mode.value
+            settings = SessionConfigService(config).resolve(session_id)
+            tags = [t.strip() for t in settings.fortune_tags.split(",") if t.strip()]
+            mode = settings.fortune_content_mode
             if mode == "r18":
                 is_r18 = True
             elif mode == "mix":

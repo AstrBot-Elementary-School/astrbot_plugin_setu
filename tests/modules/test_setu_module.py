@@ -5,9 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from astrbot_plugin_setu.src.infrastructure.astrbot.commands import (
-    SessionConfigCommandHandler,
     SetuCommandHandler,
 )
 
@@ -56,16 +54,3 @@ class TestSetuCommandHandler:
 
         assert hasattr(handler, "setu_command")
         assert hasattr(handler, "_fetch_and_send_images")
-
-
-class TestSessionConfigCommandHandler:
-    """Test unified session config adapter initialization."""
-
-    def test_module_has_required_methods(self) -> None:
-        """Test command adapter methods exist."""
-        handler = SessionConfigCommandHandler()
-
-        assert hasattr(handler, "session_config_command")
-        assert hasattr(handler, "_llm_get_session_config")
-        assert hasattr(handler, "_llm_set_session_config")
-        assert hasattr(handler, "_llm_clear_session_config")

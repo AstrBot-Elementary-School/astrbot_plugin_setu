@@ -145,38 +145,24 @@ def sample_config_dict() -> dict[str, Any]:
     return {
         "setu_general": {
             "api_type": "lolicon",
-            "multi_api_strategy": "round_robin",
             "content_mode": "sfw",
             "max_count": 10,
-            "max_replenish_rounds": 3,
         },
         "delivery": {
             "send_mode": "auto",
+            "html_card_strategy": "fallback",
             "doujinshi_send_mode": "pdf",
             "r18_docx_mode": True,
             "auto_revoke_scope": "none",
             "auto_revoke_delay": 30,
             "platform_transports": [],
         },
-        "html_card": {
-            "strategy": "fallback",
-            "mode": "single",
-            "card_padding": 6,
-            "card_gap": 6,
-        },
         "fortune": {
             "enabled": True,
-            "api_type": "inherit",
             "tags": "",
             "content_mode": "sfw",
             "allow_user_refresh": False,
             "auto_refresh": True,
-        },
-        "cache": {
-            "enabled": True,
-            "ttl_hours": 2,
-            "max_items": 200,
-            "cleanup_on_start": True,
         },
         "api": {
             "provider_overrides": [
@@ -207,25 +193,6 @@ def sample_config_dict() -> dict[str, Any]:
             ],
             "custom_api_configs": [],
         },
-        "messages": {
-            "fetching": {"enabled": True, "text": "正在获取图片，请稍候..."},
-            "found": {"enabled": True, "text": "找到 {count} 张符合要求的图片~"},
-            "send_failed": {"enabled": True, "text": "图片发送失败，请稍后再试。"},
-        },
-        "safety": {
-            "setu_user_access_control_mode": "none",
-            "setu_group_access_control_mode": "none",
-            "setu_blocked_users": [],
-            "setu_whitelist_users": [],
-            "setu_blocked_groups": [],
-            "setu_whitelist_groups": [],
-            "fortune_user_access_control_mode": "none",
-            "fortune_group_access_control_mode": "none",
-            "fortune_blocked_users": [],
-            "fortune_whitelist_users": [],
-            "fortune_blocked_groups": [],
-            "fortune_whitelist_groups": [],
-        },
+        "safety": [],
         "session_configs": [],
-        "fortune_session_configs": [],
     }

@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from astrbot_plugin_setu.src.infrastructure.astrbot.commands import (
     FortuneCommandHandler,
 )
@@ -54,5 +53,5 @@ class TestFortuneCommandHandler:
 
         assert hasattr(handler, "refresh_group_fortune_command")
         assert hasattr(handler, "refresh_all_fortune_command")
-        assert hasattr(handler, "enable_fortune_group_command")
-        assert hasattr(handler, "disable_fortune_group_command")
+        assert not hasattr(handler, "enable_fortune_group_command")
+        assert not hasattr(handler, "disable_fortune_group_command")

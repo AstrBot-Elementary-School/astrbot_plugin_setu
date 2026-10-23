@@ -10,7 +10,6 @@ src/
   application/     # 用例、DTO、应用服务与端口接口
   infrastructure/  # 配置、持久化、provider、sender、AstrBot 适配
   shared/          # 配置模型、日志、发送缓存
-pages/             # Plugin Pages 前端
 templates/         # 运势卡片 HTML 模板与字体
 tests/             # 单元与集成测试
 ```
@@ -24,10 +23,9 @@ tests/             # 单元与集成测试
   - 不承载业务逻辑编排
 
 - `src/infrastructure/astrbot/`
-  - 命令处理器（`commands/setu.py`、`commands/fortune.py`、`commands/session_config.py`）
+  - 命令处理器（`commands/setu.py`、`commands/fortune.py`）
   - 随机本子服务（`doujinshi/service.py`）、统一可恢复撤回调度器（`sending/revoke_scheduler.py`）与文件发送器（`sending/doujinshi_sender.py`）
   - 配置加载与自愈
-  - Web API 注册
   - 运势渲染器
 
 `main.py` 负责把 AstrBot 生命周期和命令接进来，`infrastructure/astrbot/` 负责具体适配。业务逻辑在 `application/` 和 `domain/`，不反向侵入入口。
@@ -37,10 +35,10 @@ tests/             # 单元与集成测试
 ### 1. Setu 图片获取与发送
 
 1. 命令或 LLM tool 触发 → `GetSetuImagesUseCase`
-2. 用例通过 `ImageProviderPort` 获取图片 URL，并在下载暂时失败时按 `max_replenish_rounds` 对同一 URL 做确认重试
+2. 用例通过 `ImageProviderPort` 获取图片 URL，并在下载暂时失败时按内部默认 3 轮对同一 URL 做确认重试
 3. `ImageSender` 按策略发送：直接发送 / 合并转发 → 可选 NapCat 本地 `file://` 直通 → 确认失败后 NapCat 流式或 HTML 卡片 fallback → Docx 封装
 4. 发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时标记为可能仍在送达，不立即触发 fallback，避免延迟送达后重复发图
-5. 发送结果通过 `resolve_message()` 生成可配置提示
+5. 发送结果通过 `resolve_message()` 生成内置提示
 6. 缓存命中时复用本地文件，降低内存压力
 7. 自动撤回内容含 `setu`、命中撤回范围且拿到 `message_id` 时，统一撤回调度器将任务写入 `revoke_tasks.json`，重启后按原到期时间调用 OneBot `delete_msg`
 
@@ -65,21 +63,22 @@ tests/             # 单元与集成测试
 
 1. 命令或 tool 触发前检查 `AccessControlService`
 2. Setu 和 Fortune 独立判定
-3. 用户和群组各自按 `none`/`blacklist`/`whitelist` 模式判定
-4. 任一维度拒绝则最终拒绝
-5. 黑白名单互斥：同一功能下同一 ID 不会同时存在两份名单中
+3. 两种功能模板分别按完整 SID 执行 `none`/`blacklist`/`whitelist` 判定
+4. 不区分用户和群组，群聊规则约束整个会话；受限模式下缺少 SID 的旧运势记录跳过预生成
+5. 黑白名单冲突在配置校验时拒绝，不提供运行态名单修改入口
 
 ### 5. 会话配置
 
-1. `/session_config` 命令或 LLM tool 读写 `session_overrides.json`
-2. 不修改全局 WebUI 配置
-3. Plugin Pages 的 dashboard 页面提供集中管理（会话配置标签页）
+1. 插件配置 `session_configs` 声明 `setu`／`fortune` 两种会话模板。
+2. `SessionConfigService` 根据完整 `session_id` 只读解析，未指定的字段继承全局。
+3. 请求、发送和运势背景共用解析规则；不存在运行态配置 CRUD。
+4. 运势记录增加可空 `session_id` 展示上下文，预生成复用该值；缺失时使用全局，不改变用户／日期主键。
 
 ## 模块关系图
 
 ```mermaid
 flowchart TD
-  A["命令入口 / LLM Tools / Plugin Pages"] --> B["GetSetuImagesUseCase"]
+  A["命令入口 / LLM Tools"] --> B["GetSetuImagesUseCase"]
   A --> C["FortuneCommandHandler"]
   A --> D["AccessControlService"]
   A --> E["SessionConfigService"]
@@ -97,53 +96,28 @@ flowchart TD
 
   D --> M["AccessControlRepository"]
 
-  E --> N["SessionConfigRepository"]
+  E --> N["插件配置 session_configs"]
 ```
 
 ## 配置职责
 
-### 启动级配置
+### 插件配置
 
-由 `_conf_schema.json` 暴露，主要包含：
+`_conf_schema.json` 暴露全局业务参数、provider 和平台模板、`safety` 权限模板及 `session_configs` 会话模板。配置模型位于 `src/shared/config/models.py`，保存后按 AstrBot 重载流程生效。
 
-- API 类型和 provider 参数
-- 发送模式和防审核策略
-- 随机本子文件格式（PDF/ZIP）
-- 内容模式（sfw/r18/mix）
-- HTML 卡片策略
-- NapCat 流式策略
-- NapCat 本地文件直通策略
-- 缓存和性能参数
-- 消息覆盖模板
+配置界面使用 `show_advanced` 显示开关与 AstrBot 原生条件显示，隐藏项仍参与保存和解析。卡片策略属于 `delivery.html_card_strategy`；多个图片源固定轮流使用，运势复用全局图片源。
 
-### 运行级配置
+缓存、卡片间距、补图轮次和传输分块采用固定默认，不作为隐藏可调设置。提示与占位符集中在 `src/shared/config/messages.py`，不再开放覆盖。
 
-主要放在插件数据目录和 Plugin Pages：
+### 首次升级
 
-- 会话级覆盖配置（`session_overrides.json`）
-- 访问控制数据（插件数据目录）
-- 运势标签和内容模式覆盖
-
-## 消息配置
-
-所有用户可见提示通过 `MessagesConfig` / `MessageTextConfig` 管理：
-
-- 每条提示支持 `enabled` + `text` 控制
-- 支持占位符：`{count}`、`{max_count}`、`{user_id}`、`{error}`、`{tags_info}`
-- 空结果提示由命令层处理，不在 use case 内硬编码
-- 运势相关提示同样走统一消息配置
-
-新增消息 key 时，必须同步更新：
-
-- `_conf_schema.json`
-- `src/shared/config/models.py`
-- 对应测试
+`legacy_data_migration.py` 校验并迁移会话数据；旧裸 ID 权限无法可靠转换时阻止启动，需用户在插件配置中显式填写 SID 规则替换。全部校验后保存插件配置，最后写完成标记。任何一步失败都会阻止插件初始化，源文件保留。完成后只读插件配置，清空名单和删除模板不重新导入旧值。
 
 ## 数据与持久化
 
 - 运势记录：SQLite（`FortuneRepository`）
-- 访问控制：JSON 文件（`AccessControlRepository`）
-- 会话配置：JSON 文件（`SessionConfigJsonRepository`）
+- 访问控制：`ConfigAccessControlRepo` 只读插件配置 `safety` 模板列表
+- 会话配置：插件配置 `session_configs` 模板；旧 JSON 仅作一次性迁移来源
 - 发送缓存：磁盘文件（`send_cache.py`）
 - 随机本子 PDF/ZIP：插件数据目录下的 `doujinshi/`
 - 可恢复撤回任务（消息撤回，含本子普通文件消息）：插件数据目录下的 `revoke_tasks.json`

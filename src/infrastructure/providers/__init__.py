@@ -87,7 +87,7 @@ def init_provider_from_config(config: Any) -> SetuImageProvider:
     provider = init_provider(
         api_type=(getattr(config, "api_type", None) or "lolicon"),
         custom_api_configs=getattr(config, "custom_api_configs", None) or None,
-        multi_api_strategy=getattr(config, "multi_api_strategy", "round_robin"),
+        multi_api_strategy="round_robin",
         lolicon_config={
             "image_size": getattr(config, "image_size", None) or "original",
             "proxy": getattr(config, "proxy", None) or "",
