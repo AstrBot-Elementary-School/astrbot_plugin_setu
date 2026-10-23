@@ -1,32 +1,16 @@
-<!--Please describe the motivation for this change: What problem does it solve? (e.g., Fixes XX issue, adds YY feature)-->
-<!--请描述此项更改的动机：它解决了什么问题？（例如：修复了 XX issue，添加了 YY 功能）-->
+<!-- 提交前确认：不含 token、cookie、私有地址或本地运行数据。 -->
 
-### Modifications / 改动点
+## 变更点 / Changes
 
-<!--Please summarize your changes: What core files were modified? What functionality was implemented?-->
-<!--请总结你的改动：哪些核心文件被修改了？实现了什么功能？-->
+<!-- 说明改动和原因；修复 Issue 时填写 Closes #编号。 -->
 
-- [x] This is NOT a breaking change. / 这不是一个破坏性变更。
-<!-- If your change is a breaking change, please uncheck the checkbox above. -->
+## 验证步骤 / Verification
 
-### Screenshots or Test Results / 运行截图或测试结果
+<!-- 填写实际运行的命令和结果；未测试时说明原因。这里的命令不会被 CI 执行。 -->
 
-<!--Please paste screenshots, GIFs, or test logs here as evidence of executing the "Verification Steps" to prove this change is effective.-->
-<!--请粘贴截图、GIF 或测试日志，作为执行“验证步骤”的证据，证明此改动有效。-->
+## 检查清单 / Checklist
 
-### Checklist / 检查清单
-
-<!--If merged, your code will serve tens of thousands of users! Please double-check the following items before submitting.-->
-<!--如果分支被合并，您的代码将服务于众多用户！在提交前，请核查一下几点内容。-->
-
-- [ ] 😊 If there are new features added in the PR, I have discussed them with the authors through issues/emails, etc.
-  / 如果 PR 中有新加入的功能，已经通过 Issue / 邮件等方式和作者讨论过。
-
-- [ ] 👀 My changes have been well-tested, **and "Verification Steps" and "Screenshots" have been provided above**.
-  / 我的更改经过了良好的测试，**并已在上方提供了“验证步骤”和“运行截图”**。
-
-- [ ] 🤓 I have ensured that no new dependencies are introduced, OR if new dependencies are introduced, they have been added to the appropriate locations in `requirements.txt`.
-  / 我确保没有引入新依赖库，或者引入了新依赖库的同时将其添加到 `requirements.txt` 文件相应位置。
-
-- [ ] 😮 My changes do not introduce malicious code.
-  / 我的更改没有引入恶意代码。
+- [ ] 没有引入恶意代码或泄露凭据
+- [ ] 未新增依赖，或已取得维护者同意并说明名称、来源和用途
+- [ ] 不改变已有使用方式，或已说明兼容影响和迁移方式
+- [ ] 已同步受影响的文档

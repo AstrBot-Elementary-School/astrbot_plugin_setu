@@ -13,6 +13,19 @@
 > [!TIP]
 > 如果上级缓存目录不可写，设置 `RUFF_CACHE_DIR=.ruff_cache` 后再运行 ruff。
 
+## PR 合并检查
+
+- `PR Template Validation`：检查 PR 描述中的「变更点 / Changes」「验证步骤 / Verification」「检查清单 / Checklist」，并拒绝未勾选的清单项。HTML 注释不参与检查；描述中的命令不会被执行。修改描述后自动重验。
+- `AstrBot Plugin Lifecycle`：把 DNA 插件的载入与生命周期检查合为一个检查，在最新正式版和 master 上分别验证官方 PluginManager 的载入、初始化、命令与工具注册、卸载和资源清理。
+
+生命周期测试仅在 `main.py`、`__init__.py`、`src/`、`templates/`、配置 schema、插件元数据、依赖清单或该检查自身变更时执行；Markdown、预览资源和单元测试文件变更不会单独触发。纯文档 PR 仍产生成功的检查结果，不安装依赖、不运行生命周期测试，避免 required check 一直等待。
+
+插件测试只执行于无写权限的 `pull_request` 工作流，不读取真实账号或本地配置。PR 模板检查运行于 `pull_request_target`，不 checkout PR 代码，只向当前 head 发布 `PR Template Validation` 状态。
+
+两个名称对应仓库默认分支的 required checks；修改名称时需要同步修改仓库规则。首次部署时先让工作流进入默认分支并确认结果，再启用 required checks。
+
+检查入口为 `.github/workflows/pr-template.yml`、`.github/workflows/plugin-validation.yml` 和 `scripts/ci/check_astrbot_plugin.py`。脚本改编自 `astrbot_plugin_dna/scripts/ci/`，保留临时目录隔离、原始错误、凭据脱敏和卸载残留检查；模板校验沿用 `pixiv-cli/tools/prmeta` 的章节与清单规则，未迁入其命令执行系统。原许可证分别见 `scripts/ci/LICENSE.dna` 和 `.github/licenses/pixiv-cli-MIT.txt`。
+
 ## 按改动选择检查
 
 | 改动类型 | 最小检查 | 建议额外回归 | 关注点 |

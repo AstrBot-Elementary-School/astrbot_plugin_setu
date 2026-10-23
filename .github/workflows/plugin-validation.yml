@@ -1,0 +1,92 @@
+name: AstrBot Plugin Lifecycle
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-lifecycle-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle:
+    name: AstrBot Plugin Lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # 不在 workflow 上使用 paths 过滤，保证纯文档 PR 也有 required check 结果。
+      - name: Detect Runtime Changes
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=false
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            required=true
+          else
+            git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                *.md) continue ;;
+              esac
+              case "$path" in
+                main.py|__init__.py|src/*|templates/*|scripts/ci/*|_conf_schema.json|requirements*.txt|metadata.yaml|metadata.yml|pyproject.toml|uv.lock|.github/workflows/plugin-validation.yml)
+                  required=true ;;
+              esac
+            done < "$RUNNER_TEMP/changed-files"
+          fi
+          printf 'required=%s\n' "$required" >> "$GITHUB_OUTPUT"
+
+      - name: Skip Lifecycle Tests for Non-runtime Changes
+        if: steps.scope.outputs.required != 'true'
+        run: echo 'No plugin runtime changes; lifecycle tests are not required.'
+
+      - name: Set Up uv
+        if: steps.scope.outputs.required == 'true'
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          python-version: '3.12'
+
+      - name: Validate Stable and Master Lifecycle
+        if: steps.scope.outputs.required == 'true'
+        env:
+          ASTRBOT_REPOSITORY: https://github.com/AstrBotDevs/AstrBot.git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-remote --tags --refs "$ASTRBOT_REPOSITORY" \
+            | awk -F/ '{print $3}' > "$RUNNER_TEMP/astrbot-tags.txt"
+          stable=$(uv run --no-project python - "$RUNNER_TEMP/astrbot-tags.txt" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts/ci')
+          from check_astrbot_plugin import select_latest_stable_version
+          print(select_latest_stable_version(Path(sys.argv[1]).read_text().splitlines()))
+          PY
+          )
+          for source in "$stable" master; do
+            astrbot_source="$RUNNER_TEMP/astrbot-$source"
+            git clone --depth=1 --single-branch --branch "$source" \
+              "$ASTRBOT_REPOSITORY" "$astrbot_source"
+            uv venv --python 3.12 "$RUNNER_TEMP/venv-$source"
+            python="$RUNNER_TEMP/venv-$source/bin/python"
+            uv pip install --python "$python" -e "$astrbot_source" -r requirements.txt
+            uv run --no-project --python "$python" python scripts/ci/check_astrbot_plugin.py \
+              --astrbot-source "$astrbot_source" --astrbot-version "$source" \
+              --plugin-dir "$GITHUB_WORKSPACE" \
+              --astrbot-root "$RUNNER_TEMP/setu-root-$source" \
+              --plugin-name astrbot_plugin_setu
+          done
