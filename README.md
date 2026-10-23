@@ -1,10 +1,10 @@
-# 🌸 Setu 插件（astrbot_plugin_setu）
+# Setu 插件（astrbot_plugin_setu）
 
 <div align="center">
 
 <img src="https://count.getloli.com/@astrbot_plugin_setu?name=astrbot_plugin_setu&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="Moe Counter">
 
-**一个支持多平台、可自定义、带防审核机制的随机色图插件，支持多 API、随机本子 PDF/ZIP、会话级配置、LLM 工具调用。**
+**支持多图片源、随机本子 PDF/ZIP、今日运势、会话配置和 LLM 工具调用的 AstrBot 插件。**
 
 [![License: AGPL](https://img.shields.io/badge/License-AGPL-blue.svg)](https://opensource.org/licenses/agpl-3.0)
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)
@@ -17,7 +17,7 @@
 
 ---
 
-## 📸 预览
+## 预览
 
 <div align="center">
   <table>
@@ -48,22 +48,22 @@
 
 ---
 
-## ✨ 功能特性
+## 功能特性
 
-- 🎨 **多 API 支持** - Lolicon、Atri、SexNyan、自定义 API 等
-- 🧩 **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
-- 🖼️ **HTML 卡片包装** - 防止平台审核，支持自定义样式
-- 🤖 **LLM 工具调用** - 可通过大模型自动获取色图
-- 🏷️ **标签搜索** - 支持多标签、中文标签、模糊匹配
-- 🔄 **多种色图发送模式** - 直接发送、合并转发、文件封装
-- 📚 **随机本子文件** - 获取 API 返回的全部页图，可配置封装为 PDF 或 ZIP；OneBot/NapCat 普通文件消息可按统一可恢复队列延迟撤回
-- 🛡️ **防审核机制** - HTML 卡片 fallback、NapCat 流式上传、延迟撤回、Docx 封装
-- ⚡ **性能优化** - 磁盘缓存、自动补图、httpx、可观测下载重试
-- 🌐 **多平台适配** - 兼容 AstrBot 支持的所有平台
+- **多 API 支持** - Lolicon、Atri、SexNyan、自定义 API 等
+- **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
+- **HTML 卡片包装** - 普通发送失败后尝试卡片发送
+- **LLM 工具调用** - 可通过大模型自动获取色图
+- **标签搜索** - 支持多标签、中文标签、模糊匹配
+- **多种色图发送模式** - 直接发送、合并转发、文件封装
+- **随机本子文件** - 获取 API 返回的全部页图，可配置封装为 PDF 或 ZIP；OneBot/NapCat 普通文件消息可按统一可恢复队列延迟撤回
+- **防审核机制** - HTML 卡片 fallback、NapCat 流式上传、延迟撤回、Docx 封装
+- **性能优化** - 磁盘缓存、自动补图、httpx、可观测下载重试
+- **多平台适配** - 支持 AstrBot 多平台发送；合并转发、流式上传和撤回能力因平台而异
 
 ---
 
-## 📦 安装
+## 安装
 
 ### 方式一：通过 AstrBot 插件市场安装（推荐）
 
@@ -80,7 +80,7 @@
 
 ---
 
-## 📝 使用方法
+## 使用方法
 
 ### 基础命令
 
@@ -107,7 +107,7 @@
 
 在 AstrBot 插件配置中修改全局参数、`safety` 黑白名单和 `session_configs` 会话覆盖，保存后重载插件生效。插件不再提供 Pages 页面、配置命令或配置修改工具。
 
-业务操作仍可使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`；普通用户能否刷新自己的运势由配置决定，刷新本群需要管理员权限，刷新全局需要超级管理员权限。
+业务操作仍可使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`；刷新自己或本群的运势仍需要管理员权限，刷新全局需要超级管理员权限；当前普通用户刷新开关尚未接入入口检查。
 
 ### LLM 工具调用
 
@@ -166,13 +166,13 @@ NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；�
 
 在插件配置的 `safety` 模板列表中，按需添加“色图与随机本子”或“今日运势”。每条只有访问模式和 SID 黑白名单，按完整 SID 精确匹配；群聊规则对整个群生效，不再单独限制群内成员。
 
-会话模板支持继承全局；运势模板的“覆盖全局标签”开启后，留空标签表示清除全局标签限制。详见[配置参考](./docs/usage/configuration.md#会话级覆盖)。
+会话模板支持继承全局；运势模板的“单独设置背景标签”开启后，留空标签表示清除全局标签限制。详见[配置参考](./docs/usage/configuration.md#会话级覆盖)。
 
 升级时会将旧会话数据一次性迁入插件配置。旧用户／群组裸 ID 权限无法推导完整 SID，存在非空名单或限制模式时会报错，需在插件配置中明确填写新的 SID 权限规则；原运行文件保留。迁移失败会阻止初始化；迁移完成后删除模板或清空名单不会恢复旧记录。旧自定义消息和调优参数停止生效，内置提示固定启用。
 
 ---
 
-## 📚 文档
+## 文档
 
 - [`docs/usage/`](./docs/usage/README.md): 命令、配置、AI 工具说明
 - [`docs/project/`](./docs/project/README.md): 项目定位、架构与设计取舍
@@ -188,6 +188,6 @@ NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；�
 
 ---
 
-## 📄 开源协议
+## 开源协议
 
  本项目基于 [AGPL](LICENSE) 协议开源。

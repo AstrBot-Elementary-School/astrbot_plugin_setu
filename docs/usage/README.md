@@ -1,12 +1,12 @@
 # 使用文档
 
-本目录面向插件使用者，承接原根目录 `README.md` 中的命令、配置和管理说明。
+查命令、配置和工具用法，从下列文档进入。
 
 ## 阅读入口
 
 - [`commands.md`](./commands.md): 业务命令与刷新操作
-- [`configuration.md`](./configuration.md): 基础配置、HTML 卡片与防审核、性能优化
-- [`ai-tools.md`](./ai-tools.md): LLM tools 能力和使用边界
+- [`configuration.md`](./configuration.md): 全局配置、会话模板、SID 权限、发送与迁移
+- [`ai-tools.md`](./ai-tools.md): LLM 工具参数、结果和权限
 
 ## 其他文档
 

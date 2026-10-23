@@ -2,7 +2,7 @@
 
 ## 分层结构
 
-项目采用 DDD 分层，目录职责固定：
+项目按 DDD 分层组织：
 
 ```text
 src/
@@ -22,11 +22,10 @@ tests/             # 单元与集成测试
   - LLM tool 注册
   - 不承载业务逻辑编排
 
-- `src/infrastructure/astrbot/`
-  - 命令处理器（`commands/setu.py`、`commands/fortune.py`）
-  - 随机本子服务（`doujinshi/service.py`）、统一可恢复撤回调度器（`sending/revoke_scheduler.py`）与文件发送器（`sending/doujinshi_sender.py`）
-  - 配置加载与自愈
-  - 运势渲染器
+- `src/infrastructure/astrbot/`：命令处理器、配置加载与运势渲染。
+- `src/infrastructure/doujinshi/`：随机本子文件生成。
+- `src/infrastructure/sending/`：发送策略、文件发送器与可恢复撤回队列。
+- `src/infrastructure/config/`：配置迁移与自愈。
 
 `main.py` 负责把 AstrBot 生命周期和命令接进来，`infrastructure/astrbot/` 负责具体适配。业务逻辑在 `application/` 和 `domain/`，不反向侵入入口。
 
@@ -72,7 +71,7 @@ tests/             # 单元与集成测试
 1. 插件配置 `session_configs` 声明 `setu`／`fortune` 两种会话模板。
 2. `SessionConfigService` 根据完整 `session_id` 只读解析，未指定的字段继承全局。
 3. 请求、发送和运势背景共用解析规则；不存在运行态配置 CRUD。
-4. 运势记录增加可空 `session_id` 展示上下文，预生成复用该值；缺失时使用全局，不改变用户／日期主键。
+4. 运势记录用可空 `session_id` 保存生成背景的会话上下文，预生成复用该值；缺失时使用全局，不改变用户／日期主键。
 
 ## 模块关系图
 

@@ -1,65 +1,25 @@
-# Setu 文档索引
+# 文档导航
 
-`astrbot_plugin_setu` 的补充文档按用途拆分为三个目录：
+## 使用插件
 
-- [`project/`](./project/README.md): 项目定位、架构、现状与路线图
-- [`dev/`](./dev/README.md): 开发环境、测试流程、贡献约定
-- [`usage/`](./usage/README.md): 面向使用者的命令、配置、会话模板说明
+- [聊天命令](usage/commands.md)：获取图片、本子和运势，刷新运势。
+- [配置参考](usage/configuration.md)：全局配置、会话模板、SID 权限、发送与升级迁移。
+- [LLM 工具](usage/ai-tools.md)：工具参数、返回结果和权限。
 
-## 文档职责边界
+安装和常用命令见 [README](../README.md)。
 
-文档按"入口索引、开发流程、项目事实、用户说明"拆分，避免同一规则多处维护：
+## 理解实现
 
-- `docs/README.md` 只做总索引和阅读路径。
-- `docs/dev/` 只写开发、测试、贡献、维护纪律，不复制业务语义。
-- `docs/project/overview.md` 只写项目定位和取舍，不维护细节清单。
-- `docs/project/architecture.md` 写模块关系和主运行链路。
-- `docs/project/domain-model.md` 是领域值、枚举、配置模型、常量归属的唯一细节来源。
-- 其他 `docs/project/*.md` 按模块深挖流程和实现边界。
-- `docs/usage/` 面向用户说明，维护命令、配置、会话模板和兼容性说明。
+- [项目概览](project/overview.md)：功能、配置入口和设计取舍。
+- [架构](project/architecture.md)：分层、启动流程、调用链和数据归属。
+- [传输上限与诊断](project/sending-limits.md)：OneBot/NapCat 实测条件、限制和排查步骤。
 
-如果多个文档都提到同一概念，应由最具体的专题文档维护细节，其他文档只链接过去。
+## 开发与维护
 
-## 章节索引
+- [环境搭建](dev/setup.md)：本地启动、目录和运行数据。
+- [测试](dev/testing.md)：检查命令和按改动选择的回归场景。
+- [维护说明](dev/maintenance.md)：配置迁移、文档同步和资源管理。
+- [贡献说明](dev/contributing.md)：提交改动与 PR。
+- [工程协作](dev/engineering-principles.md)：检索、代码组织、错误处理与验证。
 
-### project
-
-- [`project/overview.md`](./project/overview.md): 项目定位、边界、设计目标与核心取舍
-- [`project/architecture.md`](./project/architecture.md): 架构全景、模块关系、运行主链路与配置职责
-
-### dev
-
-- [`dev/setup.md`](./dev/setup.md): 环境准备、运行入口、目录约束
-- [`dev/testing.md`](./dev/testing.md): lint、pytest、回归清单
-- [`dev/contributing.md`](./dev/contributing.md): 贡献流程、改动边界、提交约定
-- [`dev/engineering-principles.md`](./dev/engineering-principles.md): 工具使用、错误处理、保护逻辑与前端验证原则
-- [`dev/maintenance.md`](./dev/maintenance.md): 维护规则、配置边界、已移除能力与文档同步要求
-
-### usage
-
-- [`usage/README.md`](./usage/README.md): 使用文档索引
-- [`usage/commands.md`](./usage/commands.md): 聊天业务命令与刷新操作
-- [`usage/configuration.md`](./usage/configuration.md): 基础配置、HTML 卡片与防审核、性能优化
-- [`usage/ai-tools.md`](./usage/ai-tools.md): LLM tools 能力和使用边界
-
-## 推荐阅读路径
-
-### 我想快速理解这个插件
-
-1. [`project/overview.md`](./project/overview.md)
-2. [`project/architecture.md`](./project/architecture.md)
-3. [`README.md`](../README.md)
-
-### 我要参与开发或维护
-
-1. [`dev/setup.md`](./dev/setup.md)
-2. [`dev/testing.md`](./dev/testing.md)
-3. [`dev/contributing.md`](./dev/contributing.md)
-4. [`dev/engineering-principles.md`](./dev/engineering-principles.md)
-5. [`dev/maintenance.md`](./dev/maintenance.md)
-
-### 我只想查命令和配置
-
-1. [`usage/commands.md`](./usage/commands.md)
-2. [`usage/configuration.md`](./usage/configuration.md)
-3. 按需继续阅读 [`usage/`](./usage/README.md)
+Agent 的任务与代码入口见 [AGENTS.md](../AGENTS.md)。文档细节放在对应专题，索引只保留链接。

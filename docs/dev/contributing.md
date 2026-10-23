@@ -9,7 +9,7 @@
 - 提高多平台 sender 稳定性和 provider 可靠性
 - 补全文档、测试与排障能力
 
-不建议直接上来做大而散的重构，除非先把行为边界讲清楚。
+大范围重构前，先说明涉及哪些行为和模块。
 
 ## AI 贡献
 
@@ -25,13 +25,13 @@
 
 ## 改动前先理解当前边界
 
-改动前先确认自己触碰的是哪条边界，不在这里复制业务规则：
+改动前按任务查阅：
 
 - 架构与启动分工见 [`../project/architecture.md`](../project/architecture.md)
-- 命令、配置模型和消息配置见 README 与 `src/shared/config/models.py`
+- 命令见[命令参考](../usage/commands.md)；配置模型见 `src/shared/config/models.py`，内置提示见 `src/shared/config/messages.py`
 - 平台发送和 provider 适配见 `src/infrastructure/providers/` 和 `src/infrastructure/sending/`
 
-如果准备做的事和这些边界冲突，需要先明确说明为什么。
+若要改变现有行为，在 PR 中说明原因和兼容影响。
 
 ## 推荐的贡献流程
 
@@ -43,11 +43,11 @@
 
 ## 文档同步要求
 
-文档同步细则统一维护在 [`maintenance.md`](./maintenance.md#文档同步)。贡献文档只强调一点：不要只改代码而让 README、docs、CHANGELOG 或 agent 入口说明失真。
+哪些文档需要更新，见[文档同步](./maintenance.md#文档同步)。
 
 ## 代码风格
 
-通用工程原则见 [`engineering-principles.md`](./engineering-principles.md)。贡献时优先沿用现有模式，不要为了局部问题顺手大改 unrelated 模块。
+通用工程原则见 [`engineering-principles.md`](./engineering-principles.md)。贡献时优先沿用现有模式，不要为局部问题顺手重构无关模块。
 
 ## PR 描述建议
 
@@ -58,4 +58,4 @@
 - 风险点
 - 验证方式
 
-如果是回归修复，最好明确指出"避免了什么回退"。
+回归修复应说明原来哪里出错，以及如何验证。
