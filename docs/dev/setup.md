@@ -18,7 +18,6 @@ AstrBot/data/plugins/astrbot_plugin_setu
 
 ```text
 assets/      # 静态资源与预览图
-pages/       # Plugin Pages 前端
 src/         # DDD 主代码
 tests/       # 单元与集成测试
 docs/        # 项目、开发、使用文档
@@ -50,14 +49,9 @@ python /path/to/AstrBot/main.py
 
 启动分工见 [`../project/architecture.md`](../project/architecture.md)。本地调试时保持 `main.py` 专注注册和路由，不要把业务逻辑塞进入口文件。
 
-### Plugin Pages
+### 配置调试
 
-前端统一位于 `pages/dashboard/`，主要由：
-
-- `index.html`
-- `app.js`
-
-构成。Dashboard 内通过标签页提供会话配置和访问控制，前端行为依赖 AstrBot Plugin Pages bridge，不是独立 SPA。
+在 AstrBot 插件配置中编辑 `session_configs` 与 `safety`，保存后重载。首次迁移请使用合成运行数据验证，不要在插件目录创建 `data/`。独立 worktree 运行测试时，显式设置 `ASTRBOT_ROOT` 为现有 AstrBot 根目录。
 
 ## 测试与检查命令
 

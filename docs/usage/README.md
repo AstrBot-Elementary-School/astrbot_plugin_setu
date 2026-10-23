@@ -4,9 +4,8 @@
 
 ## 阅读入口
 
-- [`commands.md`](./commands.md): 聊天命令、会话配置、黑白名单管理
+- [`commands.md`](./commands.md): 业务命令与刷新操作
 - [`configuration.md`](./configuration.md): 基础配置、HTML 卡片与防审核、性能优化
-- [`plugin-pages.md`](./plugin-pages.md): Plugin Pages 管理界面功能边界和操作说明
 - [`ai-tools.md`](./ai-tools.md): LLM tools 能力和使用边界
 
 ## 其他文档

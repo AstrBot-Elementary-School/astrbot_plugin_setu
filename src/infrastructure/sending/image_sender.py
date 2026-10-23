@@ -19,7 +19,6 @@ from ...shared.config import should_auto_revoke
 from ...shared.send_cache import get_send_cache, schedule_send_cache_cleanup
 from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
-from ..persistence import get_session_config_repo
 from .dto import SendAttemptResult, SendOptions
 from .image_compressor import compress_image
 from .napcat_stream import upload_file_stream
@@ -75,32 +74,11 @@ class ImageSender:
                 napcat_local_file_allowed_roots=(),
             )
 
-        send_mode = config.send_mode
-        auto_revoke_scope = str(getattr(config, "auto_revoke_scope", "none") or "none")
-        r18_docx_mode = config.r18_docx_mode if is_r18 else False
-        session_label = "unknown"
-
-        try:
-            identity = get_event_session_identity(event)
-            session_label = identity.session_id
-            service = SessionConfigService(get_session_config_repo())
-            snapshot = await service.get_snapshot(
-                identity.session_id,
-                identity.session_type,
-                identity.display_name,
-            )
-            send_mode = str(snapshot.effective["setu.send_mode"])
-            auto_revoke_scope = str(
-                snapshot.effective["setu.auto_revoke_scope"] or "none"
-            )
-            if is_r18:
-                r18_docx_mode = bool(snapshot.effective["setu.r18_docx"])
-        except Exception as exc:
-            self._log.debug(
-                "[send] failed to apply session overrides: session=%s, error=%s",
-                session_label,
-                exc,
-            )
+        identity = get_event_session_identity(event)
+        settings = SessionConfigService(config).resolve(identity.session_id)
+        send_mode = settings.send_mode
+        auto_revoke_scope = settings.auto_revoke_scope
+        r18_docx_mode = settings.r18_docx_mode if is_r18 else False
 
         html_card_strategy = config.html_card_strategy
         revoke_delay = config.auto_revoke_delay
@@ -899,8 +877,6 @@ class ImageSender:
     ) -> str | None:
         """Format found message with optional revoke delay."""
         config = self._config
-        if config and not getattr(config, "msg_found_enabled", True):
-            return None
         if config and hasattr(config, "format_found_message"):
             return config.format_found_message(count, revoke_delay, scope, r18)
         return self._resolve_message(

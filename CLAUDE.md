@@ -8,16 +8,15 @@
 
 ## 项目形态
 
-- 这是一个 AstrBot 随机图片与随机本子 PDF 插件，采用 DDD 分层。
-- 管理功能属于 Plugin Pages（统一 dashboard 页面，含会话配置和访问控制标签页）。
+- 这是一个 AstrBot 随机图片与随机本子文件插件，采用 DDD 分层。
+- 配置唯一入口是 AstrBot 插件配置：`safety` 模板只按完整 SID 管权限（不区分用户和群组），`session_configs` 模板管会话覆盖。
 
 主要目录：
 
 - `src/domain/`: 领域实体、值对象、标签解析、访问控制。
 - `src/application/`: 用例、DTO、端口接口、会话配置服务。
-- `src/infrastructure/`: 配置、持久化、provider、随机本子 PDF、sender、AstrBot 适配。
+- `src/infrastructure/`: 配置、持久化、provider、随机本子文件、sender、AstrBot 适配。
 - `src/shared/`: 配置模型、日志、发送缓存。
-- `pages/`: Plugin Pages 前端（统一 dashboard）。
 - `templates/`: 运势卡片 HTML 模板与字体。
 - `tests/`: 单元测试、集成测试与测试夹具。
 
@@ -26,7 +25,7 @@
 - 任何改动前先看：`docs/dev/maintenance.md`
 - 需要业务背景时看：`docs/project/overview.md`
 - 修改模块关系和启动分工时看：`docs/project/architecture.md`
-- 修改消息配置、提示文案或占位符时看：`src/shared/config/models.py`
+- 修改配置看 `src/shared/config/models.py`；修改内置提示和占位符看 `src/shared/config/messages.py`。
 - 修改 provider 适配或 sender 策略时看：`src/infrastructure/providers/` 和 `src/infrastructure/sending/`
 
 ## 硬约束
@@ -35,9 +34,11 @@
 - 插件运行数据必须通过 `StarTools.get_data_dir(self.name)` 获取，不要硬编码路径。
 - 从插件目录本地调试时，不要创建或使用 `<plugin>/data` 作为运行态目录。
 - 所有用户可见提示必须走 `MessagesConfig` / `resolve_message()`，不要在 handler 内硬编码提示文案。
-- 随机本子 PDF 由 `infrastructure/doujinshi/` 生成；OneBot/NapCat 使用 `Nodes` 合并转发并按消息 ID 进入统一可恢复撤回，其他平台直接发送 `File`。
+- 随机本子由 `infrastructure/doujinshi/` 按配置生成 PDF 或 ZIP；所有平台统一发送普通 `File`，不再包装 `Nodes` 合并转发。OneBot/NapCat 若启用自动撤回，则在发送普通文件时取得消息 ID 并进入统一可恢复撤回队列。
 - 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
-- `delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理；三者共用 `auto_revoke_delay`，本子合并转发必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
+- `delivery.doujinshi_send_mode` 选择本子文件格式（`pdf` 或 `archive`，默认 `pdf`）；`delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理，三者共用 `auto_revoke_delay`。OneBot/NapCat 本子普通文件发送若启用自动撤回，必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
+- 配置文案不用表情或 `obvious_hint`；低频项通过原生条件显示收起，隐藏项不得丢值。
+- 不恢复 Pages、管理 API、配置修改命令或工具；会话模板只读解析，旧 JSON 仅作首次迁移来源。
 - 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
 
 ## 文档纪律
@@ -45,7 +46,7 @@
 - 文档不是可选收尾。行为、边界、入口、配置、流程或维护约定变化时，必须同步更新对应 `docs/`。
 - 下列变化默认必须同步文档：
   - 命令行为或参数变化
-  - Plugin Pages 交互变化
+  - 会话模板、配置入口或迁移变化
   - 配置项、默认值或兼容规则变化
   - provider、sender、消息配置算法变化
   - 访问控制判定逻辑变化

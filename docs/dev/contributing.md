@@ -5,7 +5,7 @@
 优先做这些事情：
 
 - 修复 Setu/Fortune 命令、provider、sender 回归
-- 完善 Plugin Pages 可管理性
+- 完善插件配置与会话模板的易用性
 - 提高多平台 sender 稳定性和 provider 可靠性
 - 补全文档、测试与排障能力
 
@@ -18,7 +18,7 @@
 适合 AI 参与的工作包括：
 
 - 后端实现与回归修复
-- Plugin Pages 前端实现
+- 配置 schema 与迁移维护
 - 测试补全
 - 文档整理与架构说明
 - 排障、日志梳理、兼容性分析

@@ -8,7 +8,7 @@
 - 行为、边界、入口、配置、流程、架构或维护约定变化时，必须同步更新对应文档。
 - 下列变化默认需要更新文档：
   - 命令行为或参数变化
-  - Plugin Pages 交互变化
+  - 会话模板交互与迁移变化
   - 配置项、默认值或兼容规则变化
   - provider、sender、消息配置算法变化
   - 访问控制判定逻辑变化
@@ -33,8 +33,12 @@
   - `_conf_schema.json`
   - `src/shared/config/models.py`
   - 相关测试
-- 消息配置（`MessagesConfig`）新增 key 时，同步更新默认值和占位符文档。
+- 内置提示位于 `src/shared/config/messages.py`；新增 key 时同步占位符文档和测试，不恢复用户自定义消息入口。
 - sender strategy 和 provider 参数的运行时语义见源码注释和 README，不要在维护文档里复制完整字段清单。
+
+- 配置文案不用 Unicode 表情或 `obvious_hint`；标题写用途，提示只写条件、格式和必要限制。
+- 插件弹窗不支持 `collapsed`，低频字段使用 `show_advanced` 开关配合原生 `condition`；条件显示不能删除隐藏值。
+- 卡片新字段的 Schema 空默认和隐藏旧字段用于跨路径迁移，不能直接改为默认 `fallback`，否则 AstrBot 预填默认会覆盖旧值。
 
 ## 代码组织
 
@@ -43,16 +47,13 @@
 - 消息配置解析属于 `src/shared/config/`。
 - 不要把 provider 日志、sender 降级或消息解析散落到命令层或领域层。
 
-## Plugin Pages 维护
+## 配置唯一来源
 
-- Plugin Pages 统一入口为 `pages/dashboard/index.html`。
-- 左侧导航切换"会话配置"和"访问控制"两个标签页。
-- CSS 位于 `pages/dashboard/css/`（`base.css`、`components.css`、`forms.css`、`dashboard.css`、`nav.css`）。
-- JS 为原生 JS（Proxy 响应式 store），无框架依赖。
-- 会话配置管理会话级覆盖，API 实现位于 `src/infrastructure/astrbot/session_config_api.py`。
-- 访问控制管理黑白名单，API 实现位于 `src/infrastructure/astrbot/access_control_api.py`。
-- API 注册通过 `context.register_web_api(...)`。
-- 移动端通过汉堡按钮展开导航侧边栏。
+- 全局与会话配置只从 AstrBot 插件配置读取，不提供 Pages、管理 API、配置命令或配置修改工具。
+- `session_configs` 模板按完整会话标识精确匹配，继承与显式关闭必须可区分。
+- 升级迁移先校验，再持久化配置，最后记录完成；迁移失败阻止初始化，不覆盖源文件。
+- 权限只按完整 SID 匹配整个会话，不恢复用户／群组双维度。旧裸 ID 规则不可猜测转换或静默丢弃。
+- 权限和会话非法值不得通过通用自愈重置为宽松默认。
 
 ## 测试与检查
 
@@ -74,6 +75,6 @@
 
 ## 已移除能力
 
-- 旧版 `safety.*` 配置仅在初始化时作为迁移来源读取一次；新数据以 `accessControl` 页面和插件数据目录为准。
+- Pages、配置修改命令与工具、自定义消息和调优配置已移除；权限和会话配置以插件配置为准。
 - `aiohttp` 依赖已完全移除，统一使用 `httpx`。
 - `use_httpx`、`tcp_connector_limit`、`tcp_connector_limit_per_host` 等旧配置项已移除。

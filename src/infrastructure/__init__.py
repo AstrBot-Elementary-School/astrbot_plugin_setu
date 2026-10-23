@@ -13,18 +13,14 @@ from __future__ import annotations
 from ..shared import get_logger
 from .permission_service import PermissionService
 from .persistence import (
-    FileBackedAccessControlRepo,
-    JsonSessionConfigRepository,
+    ConfigAccessControlRepo,
     SQLiteFortuneRepo,
     clear_fortune_repo,
     clear_repo,
-    clear_session_config_repo,
     get_access_control_repo,
     get_fortune_repo,
-    get_session_config_repo,
     init_access_control_repo,
     init_fortune_repo,
-    init_session_config_repo,
 )
 from .providers import (
     clear_provider,
@@ -41,29 +37,23 @@ from .sending import (
 )
 
 __all__ = [
-    "ImageSender",
+    "ConfigAccessControlRepo",
     "DirectSendStrategy",
     "ForwardSendStrategy",
     "HtmlCardFallbackStrategy",
-    "resolve_send_mode",
-    "FileBackedAccessControlRepo",
-    "JsonSessionConfigRepository",
-    "SQLiteFortuneRepo",
+    "ImageSender",
     "PermissionService",
-    # Singleton getters
+    "SQLiteFortuneRepo",
+    "clear_fortune_repo",
+    "clear_provider",
+    "clear_repo",
+    "get_access_control_repo",
+    "get_fortune_repo",
+    "get_logger",
     "get_provider",
+    "init_access_control_repo",
+    "init_fortune_repo",
     "init_provider",
     "init_provider_from_config",
-    "clear_provider",
-    "get_access_control_repo",
-    "init_access_control_repo",
-    "clear_repo",
-    "get_fortune_repo",
-    "init_fortune_repo",
-    "clear_fortune_repo",
-    "get_session_config_repo",
-    "init_session_config_repo",
-    "clear_session_config_repo",
-    # Logger
-    "get_logger",
+    "resolve_send_mode",
 ]

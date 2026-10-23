@@ -4,7 +4,7 @@
 
 - [`project/`](./project/README.md): 项目定位、架构、现状与路线图
 - [`dev/`](./dev/README.md): 开发环境、测试流程、贡献约定
-- [`usage/`](./usage/README.md): 面向使用者的命令、配置、管理页说明
+- [`usage/`](./usage/README.md): 面向使用者的命令、配置、会话模板说明
 
 ## 文档职责边界
 
@@ -16,7 +16,7 @@
 - `docs/project/architecture.md` 写模块关系和主运行链路。
 - `docs/project/domain-model.md` 是领域值、枚举、配置模型、常量归属的唯一细节来源。
 - 其他 `docs/project/*.md` 按模块深挖流程和实现边界。
-- `docs/usage/` 面向用户说明，维护命令、配置、管理页和兼容性说明。
+- `docs/usage/` 面向用户说明，维护命令、配置、会话模板和兼容性说明。
 
 如果多个文档都提到同一概念，应由最具体的专题文档维护细节，其他文档只链接过去。
 
@@ -38,9 +38,8 @@
 ### usage
 
 - [`usage/README.md`](./usage/README.md): 使用文档索引
-- [`usage/commands.md`](./usage/commands.md): 聊天命令、会话配置与黑白名单管理
+- [`usage/commands.md`](./usage/commands.md): 聊天业务命令与刷新操作
 - [`usage/configuration.md`](./usage/configuration.md): 基础配置、HTML 卡片与防审核、性能优化
-- [`usage/plugin-pages.md`](./usage/plugin-pages.md): Plugin Pages 管理界面功能边界和操作说明
 - [`usage/ai-tools.md`](./usage/ai-tools.md): LLM tools 能力和使用边界
 
 ## 推荐阅读路径

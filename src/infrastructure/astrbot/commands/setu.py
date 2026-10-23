@@ -19,14 +19,12 @@ from ....application.setu.tag_resolution import (
     resolve_user_tag_list,
     resolve_user_tags,
 )
-from ....domain.access_control import AccessPolicy
 from ....domain.access_control.service import AccessControlService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
 from ... import get_access_control_repo, get_provider
-from ...persistence import get_session_config_repo
-from ...providers import init_provider_from_config
 from ...doujinshi import DoujinshiService
+from ...providers import init_provider_from_config
 from ...sending import (
     DirectSendStrategy,
     build_doujinshi_file_chain,
@@ -420,22 +418,11 @@ class SetuCommandHandler:
     # ==================== Helper Methods ====================
 
     async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
-        """Check if user/group has access to Setu feature."""
-        repo = get_access_control_repo()
-        user_id = event.get_sender_id()
-        group_id = event.get_group_id()
-        modes = repo.get_modes()
-        policy = AccessPolicy.for_session(
-            user_id=user_id,
-            group_id=group_id,
-            user_mode=modes.get(
-                "setu_user_access_control_mode", config.setu_user_access_control_mode
-            ),
-            group_mode=modes.get(
-                "setu_group_access_control_mode", config.setu_group_access_control_mode
-            ),
+        """Check access using the complete conversation SID."""
+        allowed = AccessControlService(get_access_control_repo()).check_access(
+            "setu", get_event_session_identity(event).session_id
         )
-        return await AccessControlService(repo).check_setu_access(policy)
+        return allowed, "" if allowed else self._message("access_denied")
 
     async def _fetch_and_send_images(
         self, event: AstrMessageEvent, num: int, tags: list[str], is_r18: bool, config
@@ -474,20 +461,10 @@ class SetuCommandHandler:
     async def _get_effective_content_mode(self, event: AstrMessageEvent) -> str:
         """Get effective content mode for session."""
         config = get_config()
-        global_mode = (config.content_mode if config else None) or "sfw"
-        try:
-            identity = get_event_session_identity(event)
-            service = SessionConfigService(get_session_config_repo())
-            value = await service.get_effective_value(
-                identity.session_id,
-                "setu.content_mode",
-                identity.session_type,
-                identity.display_name,
-            )
-            return str(value)
-        except Exception as exc:
-            logger.debug("Failed to read session content mode: %s", exc)
-            return global_mode
+        if config is None:
+            return "sfw"
+        identity = get_event_session_identity(event)
+        return SessionConfigService(config).resolve(identity.session_id).content_mode
 
     @staticmethod
     def _mode_requires_r18(mode: str) -> bool:
