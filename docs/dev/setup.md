@@ -29,9 +29,9 @@ templates/   # 运势卡片 HTML 模板与字体资源
 
 ### 启动入口
 
-项目运行通常启动 AstrBot 主仓库顶层入口，而不是直接运行插件目录内的文件。
+从 AstrBot 根目录启动运行环境，不直接执行插件文件。
 
-本地工作区常见入口：
+AstrBot 源码工作区的常见入口：
 
 ```bash
 python /path/to/AstrBot/main.py
@@ -47,7 +47,7 @@ python /path/to/AstrBot/main.py
 
 ### 启动结构
 
-启动分工见 [`../project/architecture.md`](../project/architecture.md)。本地调试时保持 `main.py` 专注注册和路由，不要把业务逻辑塞进入口文件。
+启动分工见 [`../project/architecture.md`](../project/architecture.md)。`main.py` 负责注册和路由，具体处理逻辑位于 application/domain 与基础设施适配器。
 
 ### 配置调试
 
@@ -60,5 +60,5 @@ python /path/to/AstrBot/main.py
 ## 改动前先确认的几件事
 
 - 改的是命令语义、配置模型，还是 UI 行为？
-- 这次改动是否会影响 provider 发送或缓存兼容性？
+- 这次改动是否影响图片源、发送或缓存兼容性？
 - 这次改动是否需要同步更新 README 与 docs？
