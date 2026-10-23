@@ -28,7 +28,7 @@ Configuration tools and management commands have been removed. Do not call sessi
 - `session_configs`: add a `setu` or `fortune` template with the complete `unified_msg_origin` session ID. Unspecified values inherit global configuration.
 - The `setu` template controls content rating, send mode, R18 DOCX, and auto-revoke scope.
 - The `fortune` template controls background rating and tags. Turn on `override_tags` to replace global tags; an empty tag string then clears them.
-- `safety`: add independent Setu/fortune user/group templates; each contains mode, blocked IDs, and whitelist IDs.
+- `safety`: add a Setu or fortune template with a mode and complete SID blacklist/whitelist. A group SID controls the whole conversation, not individual members.
 
 Save and reload the plugin to apply changes. No separate Pages dashboard exists. Cache size/TTL, card spacing, stream chunk size, and replenish rounds use internal defaults and are not configurable.
 
