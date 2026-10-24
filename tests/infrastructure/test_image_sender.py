@@ -913,3 +913,39 @@ async def test_send_images_ignores_legacy_send_failed_toggle(
 
     assert len(results) == 1
     mock_event.plain_result.assert_called_with("图片发送失败，请稍后再试。")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("targets,expected", [(["fortune"], True), (["setu"], False)])
+async def test_fortune_transport_uses_its_own_revoke_policy(
+    mock_event, targets, expected
+):
+    config = SetuPluginConfig(
+        delivery={
+            "send_mode": "forward",
+            "r18_docx_mode": True,
+            "auto_revoke_targets": targets,
+            "auto_revoke_scope": "all",
+            "compress_enabled": True,
+            "compress_max_mb": 9,
+            "platform_transports": [
+                {
+                    "__template_key": "napcat",
+                    "stream_mode": "always",
+                    "local_file_mode": "fallback",
+                    "local_file_allowed_roots": ["/shared"],
+                }
+            ],
+        }
+    )
+    sender = ImageSender(config, content_type="fortune")
+    options = await sender._build_options(mock_event, is_r18=True)
+    assert options.send_mode == "image"
+    assert options.r18_docx_mode is False
+    assert options.auto_revoke is expected
+    assert options.compress_enabled and options.compress_max_mb == 9
+    assert options.napcat_stream_mode == "always"
+    assert options.napcat_local_file_allowed_roots == ("/shared",)
+    sender._send_plain_text = AsyncMock()
+    await sender._send_post_delivery_messages(mock_event, 1, options, False, 1)
+    sender._send_plain_text.assert_not_awaited()

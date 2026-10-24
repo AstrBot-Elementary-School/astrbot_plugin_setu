@@ -29,6 +29,8 @@ class MessagesConfig:
         "empty_payload": "运气不好，一张图都没拿到...",
         "r18_docx_failed": "R18 Docx 封装失败，请稍后再试或联系管理员。",
         "fortune_group_only": "此命令仅支持群聊",
+        "fortune_image_submitted": "已提交今日运势图。\n{fortune}",
+        "fortune_image_failed": "运势图未能发送，以下为文字运势：\n{fortune}",
         "fortune_get_failed": "获取运势失败: {error}",
         "fortune_refresh_failed": "刷新运势失败: {error}",
         "fortune_refresh_group_failed": "刷新群运势失败: {error}",
