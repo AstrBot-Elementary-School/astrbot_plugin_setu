@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +15,7 @@ from astrbot_plugin_setu.src.infrastructure.doujinshi import (
 
 
 class _Config:
+    delivery = SimpleNamespace(doujinshi_enabled=True)
     auto_revoke_delay = 1800
     auto_revoke_doujinshi_enabled = True
     doujinshi_send_mode = "pdf"

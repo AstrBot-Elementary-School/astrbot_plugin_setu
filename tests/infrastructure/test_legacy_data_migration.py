@@ -296,3 +296,70 @@ def test_invalid_card_migration_does_not_overwrite_source(tmp_path) -> None:
     assert (tmp_path / "plugin.json").read_text() == before
     assert config["html_card"]["strategy"] == "invalid"
     assert not (tmp_path / MIGRATION_MARKER).exists()
+
+
+def test_atri_image_migration_is_persisted_once_and_preserves_other_settings(
+    tmp_path, monkeypatch
+):
+    values = {
+        "setu_general": {"api_type": "atri", "content_mode": "mix"},
+        "api": {
+            "provider_overrides": [
+                {"__template_key": "atri", "proxy": "old.invalid"},
+                {
+                    "__template_key": "lolicon",
+                    "proxy": "keep.invalid",
+                    "exclude_ai": False,
+                },
+            ]
+        },
+        "safety": [
+            {
+                "__template_key": "setu",
+                "mode": "whitelist",
+                "whitelist_sids": ["bot:GroupMessage:1"],
+            }
+        ],
+    }
+    config = make_config(tmp_path, values)
+    migrate_plugin_config(tmp_path, config)
+    persisted = json.loads((tmp_path / "plugin.json").read_text(encoding="utf-8-sig"))
+    assert persisted["setu_general"] == {"api_type": "lolicon", "content_mode": "mix"}
+    assert persisted["safety"] == dict(config)["safety"]
+    assert persisted["api"]["provider_overrides"] == [
+        values["api"]["provider_overrides"][1]
+    ]
+    monkeypatch.setattr(
+        type(config),
+        "save_config",
+        MagicMock(side_effect=AssertionError("must not save again")),
+    )
+    migrate_plugin_config(tmp_path, config)
+
+
+def test_atri_migration_save_failure_restores_original_and_stops(tmp_path, monkeypatch):
+    config = make_config(tmp_path, {"setu_general": {"api_type": "atri"}})
+    monkeypatch.setattr(
+        type(config), "save_config", MagicMock(side_effect=OSError("disk full"))
+    )
+    with pytest.raises(OSError, match="disk full"):
+        migrate_plugin_config(tmp_path, config)
+    assert config["setu_general"]["api_type"] == "atri"
+    assert not (tmp_path / MIGRATION_MARKER).exists()
+
+
+def test_invalid_phrase_is_rejected_before_healing_or_saving(tmp_path, monkeypatch):
+    config = make_config(
+        tmp_path,
+        {
+            "setu_general": {
+                "trigger_templates": [
+                    {"__template_key": "setu", "phrase": "{标签}{标签}"}
+                ]
+            }
+        },
+    )
+    monkeypatch.setattr(type(config), "save_config", MagicMock())
+    with pytest.raises(ValidationError, match="占位符"):
+        migrate_plugin_config(tmp_path, config)
+    config.save_config.assert_not_called()

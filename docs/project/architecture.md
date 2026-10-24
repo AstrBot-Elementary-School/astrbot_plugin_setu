@@ -33,7 +33,7 @@ tests/             # 单元与集成测试
 
 ### 1. Setu 图片获取与发送
 
-1. 命令或 LLM tool 触发 → `GetSetuImagesUseCase`
+1. 命令、可配置短语或 LLM tool 触发，移除独立 `r18` 标记并校验会话分级 → `GetSetuImagesUseCase`
 2. 用例通过 `ImageProviderPort` 获取图片 URL，并在下载暂时失败时按内部默认 3 轮对同一 URL 做确认重试
 3. `ImageSender` 按策略发送：直接发送 / 合并转发 → 可选 NapCat 本地 `file://` 直通 → 确认失败后 NapCat 流式或 HTML 卡片 fallback → Docx 封装
 4. 发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时标记为可能仍在送达，不立即触发 fallback，避免延迟送达后重复发图
@@ -43,7 +43,7 @@ tests/             # 单元与集成测试
 
 ### 2. Fortune 运势生成
 
-1. 命令或 LLM tool 触发 → `FortuneCommandHandler`
+1. 运势启用时，命令、短语或 LLM tool 触发 → `FortuneCommandHandler`
 2. `FortuneService` 查询或生成今日运势记录
 3. 有缓存图片时直接复用；否则获取背景、渲染模板、缓存卡片
 4. 渲染失败降级为纯文本
@@ -86,7 +86,7 @@ flowchart TD
   A --> O["DoujinshiService"]
 
   B --> F["ImageProviderPort"]
-  F --> G["LoliconProvider / AtriProvider / SexNyanProvider / CustomProvider / MultiProvider"]
+  F --> G["LoliconProvider / SexNyanProvider / CustomProvider / MultiProvider"]
   B --> H["ImageSender"]
   H --> I["SendStrategy / NapCatStream / SendFilters"]
   O --> P["PDF / ZIP File"]
@@ -99,6 +99,8 @@ flowchart TD
 
   E --> N["插件配置 session_configs"]
 ```
+
+短语匹配使用 `domain/setu/triggers.py` 的字面模板；AstrBot 自定义过滤器只让匹配消息进入路由，避免未匹配消息被当作插件指令。工具按开关注册，调用时也检查开关。运势关闭时不初始化仓库，渲染器在实际渲染时创建；撤回队列独立恢复。
 
 ## 配置职责
 

@@ -111,15 +111,6 @@ def sample_config_dict() -> dict[str, Any]:
                     "exclude_ai": True,
                 },
                 {
-                    "__template_key": "atri",
-                    "image_size": "original",
-                    "proxy": "",
-                    "aspect_ratio": "",
-                    "uid": [],
-                    "keyword": "",
-                    "exclude_ai": True,
-                },
-                {
                     "__template_key": "sexnyan",
                     "proxy": "",
                     "uid": [],

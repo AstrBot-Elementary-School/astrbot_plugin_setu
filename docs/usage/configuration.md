@@ -12,13 +12,33 @@
 
 | 配置项 | 类型 | 说明 | 可选值 | 默认值 |
 |--------|------|------|--------|--------|
-| `api_type` | 字符串 | API 类型 | `lolicon` / `atri` / `sexnyan` / `custom` / `all` | `lolicon` |
+| `api_type` | 字符串 | API 类型 | `lolicon` / `sexnyan` / `custom` / `all` | `lolicon` |
 | `send_mode` | 字符串 | 色图发送模式 | `auto` / `image` / `forward` | `auto` |
 | `content_mode` | 字符串 | 内容模式 | `sfw` / `r18` / `mix` | `sfw` |
 | `max_count` | 整数 | 单次最大图片数 | 1-10 | `10` |
 | `exclude_ai` | 布尔值 | 是否排除 AI 生成图片 | `true` / `false` | `true` |
 
 图片 URL 已返回但下载出现连接错误、HTTP 错误或超时时，插件会先按内部默认的 3 轮对同一 URL 重试，并记录结果。仍失败时才进入后续补图轮次或返回无结果，避免 CDN/反代短暂抖动被直接当成最终失败。
+
+### 功能开关与短语
+
+在“图片获取”的更多配置中：
+
+- `setu_general.llm_tools_enabled`：默认 `true`，关闭后不注册插件工具，命令仍可用。
+- `setu_general.natural_language_enabled`：默认 `true`，只控制短语触发。
+- `setu_general.trigger_templates`：按顺序匹配整句，首次匹配后停止。默认含 `setu`、`doujinshi`、`fortune` 三条空短语规则，分别沿用原有语法；填写短语替换该条语法，删除全部规则表示不提供自然语句入口。
+
+图片模板可用 `{数量}`、`{标签}`，本子仅可用 `{标签}`，运势不接受占位符。数量省略为 1，标签省略为空；重复、未知占位符及格式修饰报错。文字按字面匹配，不开放正则。例如：
+
+```json
+"trigger_templates": [
+  {"__template_key": "setu", "phrase": "给我{数量}张{标签}图片"},
+  {"__template_key": "doujinshi", "phrase": "找本{标签}本子"},
+  {"__template_key": "fortune", "phrase": "看看今天运气"}
+]
+```
+
+命令、图片短语和图片工具都接受独立的 `r18` 标签，大小写不限；它不参与标签别名和图片源搜索，仅影响本次请求。生效会话分级为 SFW 时，在访问图片源前拒绝。
 
 ## 发送与撤回
 
@@ -59,6 +79,8 @@
 色图和今日运势的消息撤回依赖 OneBot-like 平台返回的 `message_id`。如果平台不支持 `delete_msg`、发送返回里没有 `message_id`，或删除失败，插件只记录 warning，不阻止消息发送。已登记的撤回任务会写入插件数据目录中的 `revoke_tasks.json`，插件退出时仅停止内存计时，重启后仍按原到期时间恢复。旧版 `delivery.auto_revoke_r18` 启动时会迁移为 `auto_revoke_scope`：`true` → `r18`，`false` → `none`，迁移后旧字段会被移除。
 
 ### 随机本子文件格式
+
+`delivery.doujinshi_enabled` 位于更多配置，默认 `true`。关闭后命令和短语只提示停用，不下载或生成文件；已有文件和持久化撤回任务保留。
 
 `delivery.doujinshi_send_mode` 控制本子生成的文件类型：
 
@@ -103,7 +125,7 @@ NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 Na
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
-| `provider_overrides` | template_list | 可选覆盖 provider 默认参数；Lolicon/Atri 支持图片尺寸、代理、UID、关键词、AI 过滤，SexNyan 支持代理、作者 UID、关键词 |
+| `provider_overrides` | template_list | 可选覆盖 provider 默认参数；Lolicon 支持图片尺寸、代理、UID、关键词、AI 过滤，SexNyan 支持代理、作者 UID、关键词 |
 | `custom_api_configs` | template_list | 自定义图片 API 列表 |
 | `tag_alias_templates` | template_list | 标签别名映射；添加后优先于旧文本格式 `tag_alias` |
 
@@ -148,7 +170,7 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 以下不再开放配置：缓存开启、TTL 2 小时、容量 200 条、启动清理；卡片间距和内边距均为 6；流式分块 64 KiB；补图轮次 3。旧调优值停止生效，传输模式和本地共享目录白名单仍可配置。
 
-提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{count}`、`{max_count}`、`{min_count}`、`{error}`、`{tags_info}`、`{revoke_delay}` 等占位符；运势发图结果提示 `fortune_image_submitted`、`fortune_image_failed` 使用 `{fortune}`。提示固定启用，旧 `messages` 与 `message_overrides` 不再影响输出。
+提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{count}`、`{max_count}`、`{min_count}`、`{error}`、`{tags_info}`、`{revoke_delay}`、`{feature}` 等占位符；运势发图结果提示 `fortune_image_submitted`、`fortune_image_failed` 使用 `{fortune}`。提示固定启用，旧 `messages` 与 `message_overrides` 不再影响输出。
 
 ## 今日运势
 
@@ -156,9 +178,13 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 背景图片使用“图片获取”中选择的图片来源，可单独设置分级和标签。关闭运势时，其余选项隐藏。
 
-打开“显示更多配置”后可看到普通用户刷新和后台预生成选项。当前获取与刷新入口尚未完整接入 `fortune.enabled`、`fortune.allow_user_refresh`：关闭运势不会拦截获取入口，打开普通用户刷新也不会取消管理员要求。“后台预生成运势”（`fortune.auto_refresh`）控制启动后和每日零点为近期活跃用户生成运势及图片缓存。关闭后台预生成不会关闭用户主动获取运势，也不表示沿用前一天的运势。
+关闭 `fortune.enabled` 会停用获取、刷新、运势工具和后台预生成，不初始化运势数据库或渲染器；已有运势和缓存保留，持久化撤回任务照常恢复。
+
+更多配置中的 `fortune.allow_user_refresh` 默认关闭；开启后普通用户可刷新自己的运势，但仍须通过运势 SID 权限检查。本群刷新仍需管理员，全局刷新仍需超级管理员。“后台预生成运势”（`fortune.auto_refresh`）控制每日零点为近期活跃用户生成运势及图片缓存。关闭预生成不会关闭主动获取运势，也不表示沿用前一天的运势。
 
 ## 升级与恢复
+
+Atri 内置图片源已移除，`all` 只轮流使用 Lolicon 和 SexNyan。旧 `setu_general.api_type=atri` 在配置自愈前迁为 `lolicon` 并保存，日志会提示；保存失败则停止初始化。已有 Lolicon 参数、分级和 SID 权限保留，Atri 专属参数删除，不映射给其他来源。自定义 API 不限制地址中是否包含 Atri。随机本子仍调用 Atri 服务，需关闭 `delivery.doujinshi_enabled` 才能停用这条下载入口。
 
 卡片配置由 `html_card.strategy` 迁入 `delivery.html_card_strategy`；新旧路径都有值时使用新路径，保存成功后移除旧字段。有效默认仍为 `fallback`。Schema 的新字段使用空值作为迁移占位，避免 AstrBot 提前补默认值覆盖旧设置；初始化后会写入实际值。隐藏的旧字段仅用于升级，不是配置入口。
 

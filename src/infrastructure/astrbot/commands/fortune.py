@@ -21,6 +21,7 @@ from ....domain.fortune import (
 from ....domain.fortune.service import FortuneService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
+from ....shared.config.messages import MessagesConfig
 from ... import get_access_control_repo, get_provider
 from ...permission_service import PermissionService
 from ...persistence import get_fortune_repo
@@ -33,9 +34,6 @@ from ..session_identity import get_event_session_identity
 
 logger = get_logger()
 
-# Regex pattern directly in decorator (not in constants)
-FORTUNE_REGEX_PATTERN = r"^(?!/)(今日运势|jrys)$"
-
 
 class FortuneCommandHandler:
     """Handles all Fortune-related commands.
@@ -45,7 +43,7 @@ class FortuneCommandHandler:
     """
 
     def __init__(self) -> None:
-        self._renderer = FortuneRenderer()
+        self._renderer: FortuneRenderer | None = None
 
     # ==================== Command Handlers ====================
 
@@ -53,6 +51,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /今日运势 command (/今日运势, /jrys)."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         config = get_config()
         if not config:
             if result := self._plain(event, self._message("config_not_loaded")):
@@ -152,7 +154,11 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新今日运势 command."""
-        has_perm, msg = PermissionService.require_admin(event)
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
+        has_perm, msg = await self._check_self_refresh(event)
         if not has_perm:
             if result := self._plain(event, msg):
                 yield result
@@ -180,6 +186,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新本群今日运势 command."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         has_perm, msg = PermissionService.require_admin(event)
         if not has_perm:
             if result := self._plain(event, msg):
@@ -214,6 +224,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新全局今日运势 command."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         has_perm, msg = PermissionService.require_super_user(event)
         if not has_perm:
             if result := self._plain(event, msg):
@@ -242,6 +256,9 @@ class FortuneCommandHandler:
 
     async def _llm_get_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for getting today's fortune."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         config = get_config()
         if not config:
             return self._message("config_not_loaded")
@@ -266,7 +283,10 @@ class FortuneCommandHandler:
 
     async def _llm_refresh_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing today's fortune."""
-        has_perm, msg = PermissionService.require_admin(event)
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
+        has_perm, msg = await self._check_self_refresh(event)
         if not has_perm:
             return msg
 
@@ -286,6 +306,9 @@ class FortuneCommandHandler:
 
     async def _llm_refresh_group_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing group fortunes."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         has_perm, msg = PermissionService.require_admin(event)
         if not has_perm:
             return msg
@@ -308,6 +331,9 @@ class FortuneCommandHandler:
 
     async def _llm_refresh_all_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing all fortunes."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         has_perm, msg = PermissionService.require_super_user(event)
         if not has_perm:
             return msg
@@ -361,6 +387,25 @@ class FortuneCommandHandler:
         return cached_count
 
     # ==================== Helper Methods ====================
+
+    def _unavailable(self, *, tool: bool = False) -> str:
+        config = get_config()
+        if config is None:
+            return self._message("config_not_loaded")
+        if not config.fortune.enabled:
+            return self._message("feature_disabled", feature="今日运势")
+        if tool and not config.setu_general.llm_tools_enabled:
+            return self._message("feature_disabled", feature="LLM 工具")
+        return ""
+
+    async def _check_self_refresh(self, event: AstrMessageEvent) -> tuple[bool, str]:
+        config = get_config()
+        allowed, message = await self._check_access(event, config)
+        if not allowed:
+            return allowed, message
+        if config.fortune.allow_user_refresh:
+            return True, ""
+        return PermissionService.require_admin(event)
 
     async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
         """Check access using the complete conversation SID."""
@@ -429,6 +474,8 @@ class FortuneCommandHandler:
             "theme_color": record.theme_color,
         }
         try:
+            if self._renderer is None:
+                self._renderer = FortuneRenderer()
             image_bytes = await self._renderer.render_to_image(
                 fortune_dict, image_base64=image_base64
             )
@@ -443,7 +490,7 @@ class FortuneCommandHandler:
         self, session_id: str | None = None
     ) -> tuple[bytes | None, str | None]:
         config = get_config()
-        if not config:
+        if not config or not config.fortune.enabled:
             return None, None
         try:
             init_provider_from_config(config)
@@ -484,12 +531,7 @@ class FortuneCommandHandler:
             return None, None
 
     def _message(self, key: str, **kwargs: Any) -> str:
-        config = get_config()
-        if config and hasattr(config, "resolve_message"):
-            text = config.resolve_message(key, **kwargs)
-            if text is not None:
-                return text
-        return ""
+        return MessagesConfig.resolve_message(key, **kwargs) or ""
 
 
 # ==================== LLM Tools Registration ====================
@@ -497,6 +539,13 @@ class FortuneCommandHandler:
 
 def register_llm_tools() -> None:
     """Register Fortune LLM tools."""
+    config = get_config()
+    if (
+        config is None
+        or not config.fortune.enabled
+        or not config.setu_general.llm_tools_enabled
+    ):
+        return
     _handler = FortuneCommandHandler()
     tools = [
         (
@@ -509,7 +558,7 @@ def register_llm_tools() -> None:
             "refresh_my_fortune",
             _handler._llm_refresh_fortune,
             [],
-            "Refresh my today's fortune (admin only).",
+            "Refresh my today's fortune when permitted by the plugin configuration.",
         ),
         (
             "refresh_group_fortune",

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-import re
 import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -16,12 +15,13 @@ from astrbot.core.provider.register import llm_tools
 from ....application.session_config import SessionConfigService
 from ....application.setu.get_images import GetSetuImagesUseCase
 from ....application.setu.tag_resolution import (
-    resolve_user_tag_list,
+    resolve_image_request_tags,
     resolve_user_tags,
 )
 from ....domain.access_control.service import AccessControlService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
+from ....shared.config.messages import MessagesConfig
 from ... import get_access_control_repo, get_provider
 from ...doujinshi import DoujinshiService
 from ...providers import init_provider_from_config
@@ -36,9 +36,6 @@ from ..config import get_config, get_plugin_context
 from ..session_identity import get_event_session_identity
 
 logger = get_logger()
-
-# Regex pattern directly in decorator (not in constants)
-SETU_REGEX_PATTERN = r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图$"
 
 
 def _platform_name(event: AstrMessageEvent) -> str | None:
@@ -124,80 +121,13 @@ class SetuCommandHandler:
 
     # ==================== Command Handlers ====================
 
-    async def get_random_picture(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Handle natural language setu requests (regex trigger)."""
-        if not await _rate_limiter.acquire(event):
-            if result := self._plain(event, self._message("rate_limited")):
-                yield result
-            return
-
-        try:
-            async for result in self._handle_random_picture_internal(event):
-                yield result
-        finally:
-            await _rate_limiter.release(event)
-
-    async def _handle_random_picture_internal(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Internal handler for regex-triggered setu requests."""
-        config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
-        match = re.match(SETU_REGEX_PATTERN, event.message_str.strip())
-        if not match:
-            return
-
-        has_perm, msg = await self._check_access(event, config)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        num_str = match.group(2)
-        num = self._parse_count(num_str)
-        max_count = config.max_count or 10
-
-        if num < 1 or num > max_count:
-            if num == -1:
-                text = self._message("invalid_count", min_count=1, max_count=max_count)
-            elif num > max_count:
-                text = self._message("max_count_exceeded", max_count=max_count)
-            else:
-                text = self._message(
-                    "count_out_of_range", min_count=1, max_count=max_count
-                )
-            if result := self._plain(event, text):
-                yield result
-            return
-
-        tag_str = match.group(4).strip()
-        tags = resolve_user_tags(tag_str, getattr(config, "tag_alias", ""))
-
-        effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = self._mode_requires_r18(effective_mode)
-
-        try:
-            async for result in self._fetch_and_send_images(
-                event, num, tags, is_r18, config
-            ):
-                yield result
-        except asyncio.TimeoutError:
-            logger.warning("get_random_picture timeout (>60s)")
-            if result := self._plain(event, self._message("fetch_timeout")):
-                yield result
-        except Exception:
-            logger.exception("get_random_picture failed")
-            if result := self._plain(event, self._message("fetch_failed")):
-                yield result
-
     async def setu_command(
-        self, event: AstrMessageEvent, count: str = "1", *, tags: str = ""
+        self,
+        event: AstrMessageEvent,
+        count: str = "1",
+        *,
+        tags: str = "",
+        natural: bool = False,
     ) -> AsyncGenerator[Any, None]:
         """Handle /setu command.
 
@@ -210,7 +140,9 @@ class SetuCommandHandler:
             return
 
         try:
-            async for result in self._handle_setu_command_internal(event, count, tags):
+            async for result in self._handle_setu_command_internal(
+                event, count, tags, natural=natural
+            ):
                 yield result
         finally:
             await _rate_limiter.release(event)
@@ -237,6 +169,12 @@ class SetuCommandHandler:
         if not config:
             if result := self._plain(event, self._message("config_not_loaded")):
                 yield result
+            return
+
+        if not config.delivery.doujinshi_enabled:
+            yield event.plain_result(
+                self._message("feature_disabled", feature="随机本子")
+            )
             return
 
         has_perm, msg = await self._check_access(event, config)
@@ -326,7 +264,7 @@ class SetuCommandHandler:
                 yield result
 
     async def _handle_setu_command_internal(
-        self, event: AstrMessageEvent, count: str, tags: str
+        self, event: AstrMessageEvent, count: str, tags: str, *, natural: bool = False
     ) -> AsyncGenerator[Any, None]:
         """Internal handler for /setu command."""
         config = get_config()
@@ -345,7 +283,7 @@ class SetuCommandHandler:
         num = self._parse_count(count)
         extra_tag = ""
 
-        if num == -1:
+        if num == -1 and not natural:
             num = 1
             extra_tag = count
 
@@ -353,16 +291,21 @@ class SetuCommandHandler:
         if extra_tag:
             all_tags = f"{extra_tag} {all_tags}".strip()
 
-        if num > max_count:
-            text = self._message("max_count_exceeded", max_count=max_count)
+        if num < 1 or num > max_count:
+            text = self._message("invalid_count", min_count=1, max_count=max_count)
             if result := self._plain(event, text):
                 yield result
             return
 
-        parsed_tags = resolve_user_tags(all_tags, getattr(config, "tag_alias", ""))
+        parsed_tags, explicit_r18 = resolve_image_request_tags(
+            all_tags, config.tag_alias
+        )
 
         effective_mode = await self._get_effective_content_mode(event)
-        is_r18 = self._mode_requires_r18(effective_mode)
+        if explicit_r18 and effective_mode == "sfw":
+            yield event.plain_result(self._message("r18_not_allowed"))
+            return
+        is_r18 = explicit_r18 or self._mode_requires_r18(effective_mode)
 
         try:
             async for result in self._fetch_and_send_images(
@@ -388,20 +331,25 @@ class SetuCommandHandler:
         if not config:
             return self._message("config_not_loaded")
 
+        if not config.setu_general.llm_tools_enabled:
+            return self._message("feature_disabled", feature="LLM 工具")
         has_perm, msg = await self._check_access(event, config)
         if not has_perm:
             return msg
 
+        parsed_tags, explicit_r18 = resolve_image_request_tags(
+            tags or [], config.tag_alias
+        )
+        effective_mode = await self._get_effective_content_mode(event)
+        if explicit_r18 and effective_mode == "sfw":
+            return self._message("r18_not_allowed")
         try:
             init_provider_from_config(config)
             provider = get_provider()
-            effective_mode = await self._get_effective_content_mode(event)
             request = SetuRequest.from_user_input(
                 count=count,
-                tags=resolve_user_tag_list(
-                    tags or [], getattr(config, "tag_alias", "")
-                ),
-                r18=self._mode_requires_r18(effective_mode),
+                tags=parsed_tags,
+                r18=explicit_r18 or self._mode_requires_r18(effective_mode),
                 exclude_ai=config.exclude_ai,
                 max_replenish_rounds=config.max_replenish_rounds,
             )
@@ -517,13 +465,7 @@ class SetuCommandHandler:
         return event.plain_result(text)
 
     def _message(self, key: str, **kwargs: Any) -> str:
-        """Resolve configured message text."""
-        config = get_config()
-        if config and hasattr(config, "resolve_message"):
-            text = config.resolve_message(key, **kwargs)
-            if text is not None:
-                return text
-        return ""
+        return MessagesConfig.resolve_message(key, **kwargs) or ""
 
 
 # ==================== LLM Tools Registration ====================
@@ -531,6 +473,9 @@ class SetuCommandHandler:
 
 def register_llm_tools() -> None:
     """Register Setu LLM tools."""
+    config = get_config()
+    if config is None or not config.setu_general.llm_tools_enabled:
+        return
     _handler = SetuCommandHandler()
     tools = [
         (

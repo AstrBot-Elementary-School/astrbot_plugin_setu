@@ -9,6 +9,8 @@ class MessagesConfig:
     """集中管理插件内置提示。"""
 
     TEXTS: ClassVar[dict[str, str]] = {
+        "feature_disabled": "{feature}已停用",
+        "r18_not_allowed": "当前会话仅允许 SFW 图片，不能使用 r18 标记",
         "access_denied": "当前会话无权使用此功能",
         "fetching": "正在获取图片，请稍候...",
         "found": "找到 {count} 张符合要求的图片~",
