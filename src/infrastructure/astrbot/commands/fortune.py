@@ -12,6 +12,7 @@ from astrbot.api.event import AstrMessageEvent
 from astrbot.core.provider.register import llm_tools
 
 from ....application.session_config import SessionConfigService
+from ....application.setu import ImagePayload
 from ....domain.access_control.service import AccessControlService
 from ....domain.fortune import (
     FortuneGenerationRequest,
@@ -24,7 +25,7 @@ from ... import get_access_control_repo, get_provider
 from ...permission_service import PermissionService
 from ...persistence import get_fortune_repo
 from ...providers import init_provider_from_config
-from ...sending import DirectSendStrategy, schedule_revoke
+from ...sending import DirectSendStrategy, ImageSender, schedule_revoke
 from ...sending.platform_capabilities import is_onebot_like_platform
 from ..config import get_config, get_plugin_context
 from ..fortune_renderer import FortuneRenderer
@@ -70,23 +71,44 @@ class FortuneCommandHandler:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
             result = await service.get_or_create_fortune(request)
-            fortune_image = await self._render_fortune_image(result, service)
-            if fortune_image:
-                chain = [Comp.Image.fromBytes(fortune_image)]
-                if await self._send_fortune_with_auto_revoke(event, chain, config):
-                    return
-                yield event.chain_result(chain)
-            else:
-                text = self._format_fortune(result)
-                if await self._send_fortune_with_auto_revoke(
-                    event, [Comp.Plain(text)], config
-                ):
-                    return
-                yield event.plain_result(text)
+            if await self._send_fortune_image(event, result, service, config):
+                return
+            text = self._message(
+                "fortune_image_failed", fortune=self._format_fortune(result)
+            )
+            if await self._send_fortune_with_auto_revoke(
+                event, [Comp.Plain(text)], config
+            ):
+                return
+            yield event.plain_result(text)
         except Exception as e:
             text = self._message("fortune_get_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+
+    async def _send_fortune_image(
+        self,
+        event: AstrMessageEvent,
+        record: FortuneRecord,
+        service: FortuneService,
+        config: Any,
+    ) -> bool:
+        """Share image delivery across commands and tools; uncertain receipts must not trigger duplicates."""
+        try:
+            image = await self._render_fortune_image(record, service)
+            if not image:
+                return False
+            payload = ImagePayload(urls=(), raw_bytes=(image,), r18=False, tags=())
+            sender = ImageSender(config, logger, content_type="fortune")
+            sent = False
+            async for result in sender.send_images(payload, event):
+                if isinstance(result, dict) and result.get("send_success"):
+                    sent = True
+            # The caller supplies the text fortune instead of the generic image-failure notice.
+            return sent
+        except Exception:
+            logger.exception("[fortune] image delivery failed; falling back to text")
+            return False
 
     async def _send_fortune_with_auto_revoke(
         self,
@@ -234,7 +256,11 @@ class FortuneCommandHandler:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
             result = await service.get_or_create_fortune(request)
-            return f"今日运势: {result.title}, 星级: {result.star_count}/{result.max_stars}"
+            sent = await self._send_fortune_image(event, result, service, config)
+            return self._message(
+                "fortune_image_submitted" if sent else "fortune_image_failed",
+                fortune=self._format_fortune(result),
+            )
         except Exception as e:
             return self._message("fortune_get_failed", error=e)
 
@@ -477,7 +503,7 @@ def register_llm_tools() -> None:
             "get_today_fortune",
             _handler._llm_get_fortune,
             [],
-            "Get today's fortune for the user.",
+            "Send today's fortune image; return a text fortune if image delivery fails.",
         ),
         (
             "refresh_my_fortune",

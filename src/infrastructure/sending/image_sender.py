@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import unquote, urlparse
 
 import astrbot.api.message_components as Comp
@@ -39,7 +39,14 @@ logger = get_logger()
 class ImageSender:
     """Send images with send-mode, stream-upload, and fallback strategies."""
 
-    def __init__(self, config: Any = None, log: Any = None) -> None:
+    def __init__(
+        self,
+        config: Any = None,
+        log: Any = None,
+        *,
+        content_type: Literal["setu", "fortune"] = "setu",
+    ) -> None:
+        self._content_type = content_type
         self._user_config = config
         self._log = log or logger
         self._html_renderer: Any = None
@@ -82,11 +89,18 @@ class ImageSender:
 
         html_card_strategy = config.html_card_strategy
         revoke_delay = config.auto_revoke_delay
+        is_fortune = self._content_type == "fortune"
+        if is_fortune:
+            send_mode = "image"
+            r18_docx_mode = False
+            auto_revoke_scope = "none"
         return SendOptions(
             send_mode=send_mode,
             use_html_card=html_card_strategy != "never",
             auto_revoke=(
-                config.auto_revoke_setu_enabled
+                config.auto_revoke_fortune_enabled and revoke_delay > 0
+                if is_fortune
+                else config.auto_revoke_setu_enabled
                 and revoke_delay > 0
                 and should_auto_revoke(auto_revoke_scope, is_r18)
             ),
@@ -848,6 +862,8 @@ class ImageSender:
         scheduled_revoke_count: int,
     ) -> None:
         """Send optional plain-text notices after at least one payload was accepted."""
+        if self._content_type == "fortune":
+            return
         found_msg = self._format_found_message(
             count,
             scope=options.auto_revoke_scope,

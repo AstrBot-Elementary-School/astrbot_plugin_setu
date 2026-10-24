@@ -17,7 +17,7 @@ Use only the registered business tools:
 
 Extract image count and tags; default to `count=1`, `tags=[]`. Preserve multi-word tags. Content rating and delivery come from the current session template over global configuration; the image tool does not accept a separate R18 flag.
 
-Use `get_today_fortune` for a fortune summary. It does not send the rendered card; the user can request `/今日运势` for the card. Use refresh tools only for an explicit refresh request and the requested scope.
+Use `get_today_fortune` to send the rendered fortune card. If rendering or delivery fails, it returns a text fortune. A submitted or pending delivery is not a confirmed receipt; do not retry it automatically. Use refresh tools only for an explicit refresh request and the requested scope.
 
 Refresh-my and refresh-group require administrator permission; refresh-all requires super administrator permission. Report permission failures directly; do not switch tools to bypass them.
 

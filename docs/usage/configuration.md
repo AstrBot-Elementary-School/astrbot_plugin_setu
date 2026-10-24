@@ -148,9 +148,11 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 以下不再开放配置：缓存开启、TTL 2 小时、容量 200 条、启动清理；卡片间距和内边距均为 6；流式分块 64 KiB；补图轮次 3。旧调优值停止生效，传输模式和本地共享目录白名单仍可配置。
 
-提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{count}`、`{max_count}`、`{min_count}`、`{error}`、`{tags_info}`、`{revoke_delay}` 等占位符。提示固定启用，旧 `messages` 与 `message_overrides` 不再影响输出。
+提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{count}`、`{max_count}`、`{min_count}`、`{error}`、`{tags_info}`、`{revoke_delay}` 等占位符；运势发图结果提示 `fortune_image_submitted`、`fortune_image_failed` 使用 `{fortune}`。提示固定启用，旧 `messages` 与 `message_overrides` 不再影响输出。
 
 ## 今日运势
+
+命令与 LLM 工具共用运势图片发送流程，支持现有压缩与平台传输设置。运势卡片始终直发，不使用色图的合并转发或 R18 Word 包装；是否撤回只由 `auto_revoke_targets` 中的 `fortune` 决定。渲染或图片发送失败时提供文字运势。
 
 背景图片使用“图片获取”中选择的图片来源，可单独设置分级和标签。关闭运势时，其余选项隐藏。
 
