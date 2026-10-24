@@ -20,12 +20,13 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools
 from astrbot.core import AstrBotConfig
 
+from .src.domain.setu.triggers import TriggerMatch, match_trigger
 from .src.infrastructure import (
     init_access_control_repo,
     init_fortune_repo,
     init_provider_from_config,
 )
-from .src.infrastructure.astrbot import init_config, set_plugin_context
+from .src.infrastructure.astrbot import get_config, init_config, set_plugin_context
 from .src.infrastructure.astrbot.commands import (
     FortuneCommandHandler,
     SetuCommandHandler,
@@ -41,14 +42,6 @@ from .src.infrastructure.sending import (
     stop_revoke_scheduler,
 )
 from .src.shared.send_cache import clear_send_cache, init_send_cache
-
-# Regex patterns for command triggers
-SETU_REGEX_PATTERN = r"^/?(来\s*(.*?)(份|个|张|点))(.*?)(?:福利|色|瑟|涩|塞)?图$"
-DOUJINSHI_REGEX_PATTERN = r"^/?来\s*(?:一\s*)?份(?P<tags>.*?)本子$"
-FORTUNE_REGEX_PATTERN = r"^(?!/)(今日运势|jrys)$"
-REGEX_COMMAND_PATTERN = (
-    rf"(?:{SETU_REGEX_PATTERN}|{DOUJINSHI_REGEX_PATTERN}|{FORTUNE_REGEX_PATTERN})"
-)
 
 # Module-level handler singletons
 _setu_handler: SetuCommandHandler | None = None
@@ -95,33 +88,44 @@ async def _route_regex_command(
     setu_handler: SetuCommandHandler | None,
     fortune_handler: FortuneCommandHandler | None,
 ) -> AsyncGenerator[Any, None]:
-    """把所有纯文本正则入口集中分发到对应命令处理器。"""
-    message = str(getattr(event, "message_str", "") or "").strip()
-    if re.match(SETU_REGEX_PATTERN, message):
-        if setu_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
-        async for result in setu_handler.get_random_picture(event):
-            yield result
+    """把首条匹配短语分发给业务处理器。"""
+    matched = _match_natural_trigger(event)
+    if matched is None:
         return
-
-    if doujinshi_match := re.match(DOUJINSHI_REGEX_PATTERN, message):
-        if setu_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
-        tags = doujinshi_match.group("tags").strip()
-        async for result in setu_handler.random_doujinshi_command(event, tags=tags):
+    if matched.kind == "setu" and setu_handler is not None:
+        async for result in setu_handler.setu_command(
+            event, matched.count, tags=matched.tags, natural=True
+        ):
             yield result
-        return
-
-    if re.match(FORTUNE_REGEX_PATTERN, message):
-        if _is_fortune_command_invocation(event):
-            return
-        if fortune_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
+    elif matched.kind == "doujinshi" and setu_handler is not None:
+        async for result in setu_handler.random_doujinshi_command(
+            event, tags=matched.tags
+        ):
+            yield result
+    elif matched.kind == "fortune" and fortune_handler is not None:
         async for result in fortune_handler.fortune_command(event):
             yield result
+
+
+def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
+    config = get_config()
+    if config is None or not config.setu_general.natural_language_enabled:
+        return None
+    # AstrBot may invoke both the command and natural-language handlers for one message.
+    if _is_fortune_command_invocation(event) or (
+        getattr(event, "is_at_or_wake_command", False)
+        and _get_invoked_command(event)
+        in {"setu", "随机本子", "本子", "doujinshi", "运势刷新"}
+    ):
+        return None
+    return match_trigger(
+        str(event.message_str or "").strip(), config.setu_general.trigger_templates
+    )
+
+
+class NaturalLanguageFilter(filter.CustomFilter):
+    def filter(self, event: AstrMessageEvent, cfg: AstrBotConfig) -> bool:
+        return _match_natural_trigger(event) is not None
 
 
 def _fortune_auto_refresh_enabled(config: Any) -> bool:
@@ -183,7 +187,8 @@ class SetuPlugin(Star):
         init_provider_from_config(cfg)
 
         await init_access_control_repo(cfg.safety)
-        await init_fortune_repo(data_dir)
+        if cfg.fortune.enabled:
+            await init_fortune_repo(data_dir)
         await init_send_cache(
             data_dir,
             enabled=cfg.cache_enabled,
@@ -205,8 +210,10 @@ class SetuPlugin(Star):
             )
 
         try:
-            register_setu_llm_tools()
-            register_fortune_llm_tools()
+            if cfg.setu_general.llm_tools_enabled:
+                register_setu_llm_tools()
+                if cfg.fortune.enabled:
+                    register_fortune_llm_tools()
         except Exception as e:
             logger.warning("Failed to register LLM tools: %s", e)
 
@@ -316,9 +323,9 @@ class SetuPlugin(Star):
 
     # ==================== Setu Commands ====================
 
-    @filter.regex(REGEX_COMMAND_PATTERN)
+    @filter.custom_filter(NaturalLanguageFilter)
     async def regex_command(self, event: AstrMessageEvent) -> AsyncGenerator[Any, None]:
-        """集中处理所有纯文本正则命令入口。"""
+        """集中处理已匹配的自然语句。"""
         async for result in _route_regex_command(
             event, _setu_handler, _fortune_handler
         ):

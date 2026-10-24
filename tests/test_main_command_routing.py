@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import re
-
 import pytest
 from astrbot_plugin_setu.main import (
-    DOUJINSHI_REGEX_PATTERN,
-    FORTUNE_REGEX_PATTERN,
-    REGEX_COMMAND_PATTERN,
     _is_fortune_command_invocation,
-    _resolve_fortune_refresh_target,
     _route_regex_command,
 )
 
@@ -18,7 +12,7 @@ class _RegexHandler:
         self.marker = marker
         self.doujinshi_tags: list[str] = []
 
-    async def get_random_picture(self, event):
+    async def setu_command(self, event, count="1", *, tags="", natural=False):
         yield self.marker
 
     async def random_doujinshi_command(self, event, *, tags: str = ""):
@@ -29,33 +23,15 @@ class _RegexHandler:
         yield self.marker
 
 
-def test_resolve_fortune_refresh_target_from_new_command(mock_event) -> None:
-    mock_event.message_str = "/运势刷新 本群"
-    assert _resolve_fortune_refresh_target(mock_event, "本群") == "group"
-
-
-def test_fortune_regex_pattern_matches_plain_jrys() -> None:
-    assert re.match(FORTUNE_REGEX_PATTERN, "jrys")
-    assert re.match(FORTUNE_REGEX_PATTERN, "今日运势")
-    assert not re.match(FORTUNE_REGEX_PATTERN, "/jrys")
-
-
-def test_combined_regex_pattern_matches_both_plain_command_families() -> None:
-    assert re.match(REGEX_COMMAND_PATTERN, "来一份色图")
-    assert re.match(REGEX_COMMAND_PATTERN, "来份本子")
-    assert re.match(REGEX_COMMAND_PATTERN, "jrys")
-
-
-def test_doujinshi_regex_pattern_accepts_common_spacing() -> None:
-    assert re.match(DOUJINSHI_REGEX_PATTERN, "来份本子")
-    assert re.match(DOUJINSHI_REGEX_PATTERN, "来一份本子")
-    tagged_match = re.match(DOUJINSHI_REGEX_PATTERN, "来份碧蓝档案本子")
-    assert tagged_match and tagged_match.group("tags") == "碧蓝档案"
-    assert not re.match(DOUJINSHI_REGEX_PATTERN, "来两份本子")
-
-
 @pytest.mark.asyncio
-async def test_regex_router_dispatches_setu_and_fortune(mock_event) -> None:
+async def test_regex_router_dispatches_setu_and_fortune(
+    mock_event, monkeypatch
+) -> None:
+    from astrbot_plugin_setu.src.shared.config import SetuPluginConfig
+
+    monkeypatch.setattr(
+        "astrbot_plugin_setu.main.get_config", lambda: SetuPluginConfig()
+    )
     setu_handler = _RegexHandler("setu")
     fortune_handler = _RegexHandler("fortune")
 
@@ -103,3 +79,71 @@ def test_fortune_regex_dedup_skips_command_invocation(mock_event) -> None:
     mock_event.is_at_or_wake_command = False
     mock_event.message_str = "jrys"
     assert _is_fortune_command_invocation(mock_event) is False
+
+
+@pytest.mark.asyncio
+async def test_custom_phrases_first_match_disable_and_command_dedup(
+    mock_event, monkeypatch
+):
+    from astrbot_plugin_setu import main
+    from astrbot_plugin_setu.src.shared.config import SetuPluginConfig
+
+    config = SetuPluginConfig(
+        setu_general={
+            "trigger_templates": [
+                {"__template_key": "setu", "phrase": "来{数量}张{标签}"},
+                {"__template_key": "doujinshi", "phrase": "来{标签}"},
+                {"__template_key": "fortune", "phrase": "占卜一下"},
+            ]
+        }
+    )
+    monkeypatch.setattr(main, "get_config", lambda: config)
+    mock_event.message_str = "来2张白丝"
+    matched = main._match_natural_trigger(mock_event)
+    assert (matched.kind, matched.count, matched.tags) == ("setu", "2", "白丝")
+    mock_event.message_str = "来张"
+    matched = main._match_natural_trigger(mock_event)
+    assert (matched.count, matched.tags) == ("1", "")
+    mock_event.message_str = "占卜一下"
+    assert main.NaturalLanguageFilter().filter(mock_event, None)
+    config.setu_general.natural_language_enabled = False
+    assert not main.NaturalLanguageFilter().filter(mock_event, None)
+    config.setu_general.natural_language_enabled = True
+    config.setu_general.trigger_templates = []
+    mock_event.message_str = "来一份色图"
+    assert main._match_natural_trigger(mock_event) is None
+    config = SetuPluginConfig()
+    mock_event.message_str = "jrys"
+    mock_event.is_at_or_wake_command = True
+    assert main._match_natural_trigger(mock_event) is None
+
+
+def test_builtin_grammar_and_literal_phrase_compatibility():
+    from astrbot_plugin_setu.src.domain.setu.triggers import (
+        compile_trigger,
+        match_trigger,
+    )
+    from astrbot_plugin_setu.src.shared.config.models import SetuGeneralConfig
+
+    rules = SetuGeneralConfig().trigger_templates
+    for phrase, kind, count, tags in [
+        ("来三份白丝瑟图", "setu", "三", "白丝"),
+        ("来9份白丝 萝莉色图", "setu", "9", "白丝 萝莉"),
+        ("来份图 r18", "setu", "1", "r18"),
+        ("来份碧蓝档案本子", "doujinshi", "1", "碧蓝档案"),
+        ("今日运势", "fortune", "1", ""),
+    ]:
+        match = match_trigger(phrase, rules)
+        assert (match.kind, match.count, match.tags) == (kind, count, tags)
+    literal = compile_trigger("setu", "给我[图片].{标签}")
+    assert literal.fullmatch("给我[图片].白丝")
+    assert not literal.fullmatch("给我图x白丝")
+    for kind, phrase in [
+        ("setu", "{未知}"),
+        ("setu", "{标签}{标签}"),
+        ("fortune", "{标签}"),
+        ("setu", "{数量:03}"),
+        ("setu", "{"),
+    ]:
+        with pytest.raises(ValueError):
+            compile_trigger(kind, phrase)

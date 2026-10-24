@@ -26,6 +26,14 @@
 
 检查入口为 `.github/workflows/pr-template.yml`、`.github/workflows/plugin-validation.yml` 和 `scripts/ci/check_astrbot_plugin.py`。脚本改编自 `astrbot_plugin_dna/scripts/ci/`，保留临时目录隔离、原始错误、凭据脱敏和卸载残留检查；模板校验沿用 `pixiv-cli/tools/prmeta` 的章节与清单规则，未迁入其命令执行系统。原许可证分别见 `scripts/ci/LICENSE.dna` 和 `.github/licenses/pixiv-cli-MIT.txt`。
 
+## 长期保留哪些测试
+
+`tests/` 保留权限与 SID 隔离、配置和 SQLite 迁移、文件页序与路径安全、平台发送确认、持久化撤回，以及 #35 等已知故障回归。每个场景保留能覆盖实际边界的一组断言，不按文件或函数数量补测试。
+
+字段赋值、异常继承、方法存在、固定文案和 schema 排版快照不再单独测试；相同规则已有行为测试时，删除重复样例。插件实际注册、初始化与卸载由 `AstrBot Plugin Lifecycle` 检查，不再用 `hasattr` 代替载入验证。
+
+普通低风险逻辑可以临时验证，不必留下永久测试。长期稳定的非核心测试可以删除；涉及权限、数据恢复或外部平台契约的测试，不因长期通过而删除。下载恢复回归集中在 `tests/infrastructure/test_image_download.py`。
+
 ## 按改动选择检查
 
 | 改动类型 | 最小检查 | 建议额外回归 | 关注点 |

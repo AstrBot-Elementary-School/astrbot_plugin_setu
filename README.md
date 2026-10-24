@@ -50,7 +50,7 @@
 
 ## 功能特性
 
-- **多 API 支持** - Lolicon、Atri、SexNyan、自定义 API 等
+- **多 API 支持** - Lolicon、SexNyan、自定义 API 等
 - **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
 - **HTML 卡片包装** - 普通发送失败后尝试卡片发送
 - **LLM 工具调用** - 可通过大模型自动获取色图
@@ -107,7 +107,9 @@
 
 在 AstrBot 插件配置中修改全局参数、`safety` 黑白名单和 `session_configs` 会话覆盖，保存后重载插件生效。插件不再提供 Pages 页面、配置命令或配置修改工具。
 
-业务操作仍可使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`；刷新自己或本群的运势仍需要管理员权限，刷新全局需要超级管理员权限；当前普通用户刷新开关尚未接入入口检查。
+业务操作使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`。开启 `fortune.allow_user_refresh` 后普通用户可刷新自己的运势；本群刷新仍需管理员，全局刷新仍需超级管理员。运势关闭后，相关入口和后台预生成都停用。
+
+“图片获取”的更多配置可关闭 LLM 工具或短语触发，也可用图片、本子、运势三种短语模板替换默认说法。命令不受这两个开关影响。“发送与撤回”的更多配置可关闭随机本子，阻止下载。独立的 `r18` 标签只影响本次图片请求，不能绕过当前会话的 SFW 分级。
 
 ### LLM 工具调用
 
@@ -126,7 +128,7 @@
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `api_type` | API 类型（lolicon / atri / sexnyan / custom / all） | `lolicon` |
+| `api_type` | API 类型（lolicon / sexnyan / custom / all） | `lolicon` |
 | `send_mode` | 色图发送模式（auto / image / forward） | `auto` |
 | `doujinshi_send_mode` | 本子文件格式（pdf / archive） | `pdf` |
 | `doujinshi_max_page` | 随机本子最大页数（`0` 表示不限） | `0` |

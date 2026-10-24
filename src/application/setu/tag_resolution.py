@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from ...domain.setu import TagResolverService
@@ -36,3 +37,18 @@ def _build_resolver(
         configured_aliases, split_spaces=split_alias_spaces
     )
     return TagResolverService(alias_map or TagResolverService.DEFAULT_TAG_ALIAS)
+
+
+def resolve_image_request_tags(
+    raw_tags: str | Iterable[object], configured_aliases: str
+) -> tuple[list[str], bool]:
+    """Strip the per-request R18 marker before resolving ordinary tag aliases."""
+    if isinstance(raw_tags, str):
+        tokens = re.split(r"[\s,，、]+", raw_tags.strip())
+    else:
+        tokens = [str(tag).strip() for tag in raw_tags]
+    r18 = any(token.casefold() == "r18" for token in tokens)
+    tags = [token for token in tokens if token.casefold() != "r18"]
+    if isinstance(raw_tags, str):
+        return resolve_user_tags(" ".join(tags), configured_aliases), r18
+    return resolve_user_tag_list(tags, configured_aliases), r18

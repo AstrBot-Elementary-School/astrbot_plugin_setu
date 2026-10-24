@@ -32,7 +32,6 @@
         "default": "lolicon",
         "options": [
           "lolicon",
-          "atri",
           "sexnyan",
           "custom",
           "all"
@@ -72,6 +71,80 @@
         },
         "condition": {
           "show_advanced": true
+        }
+      },
+      "llm_tools_enabled": {
+        "type": "bool",
+        "description": "允许 LLM 调用工具",
+        "default": true,
+        "condition": {
+          "show_advanced": true
+        }
+      },
+      "natural_language_enabled": {
+        "type": "bool",
+        "description": "启用短语触发",
+        "default": true,
+        "condition": {
+          "show_advanced": true
+        }
+      },
+      "trigger_templates": {
+        "type": "template_list",
+        "description": "触发短语",
+        "hint": "按顺序匹配一次。留空沿用原语法，删除全部条目则不触发。",
+        "default": [
+          {
+            "__template_key": "setu",
+            "phrase": ""
+          },
+          {
+            "__template_key": "doujinshi",
+            "phrase": ""
+          },
+          {
+            "__template_key": "fortune",
+            "phrase": ""
+          }
+        ],
+        "condition": {
+          "show_advanced": true,
+          "natural_language_enabled": true
+        },
+        "templates": {
+          "setu": {
+            "name": "图片",
+            "items": {
+              "phrase": {
+                "type": "string",
+                "description": "短语",
+                "hint": "整句匹配，可用 {数量} 和 {标签}，如：给我{数量}张{标签}图片。",
+                "default": ""
+              }
+            }
+          },
+          "doujinshi": {
+            "name": "随机本子",
+            "items": {
+              "phrase": {
+                "type": "string",
+                "description": "短语",
+                "hint": "整句匹配，可用 {标签}，如：找本{标签}本子。",
+                "default": ""
+              }
+            }
+          },
+          "fortune": {
+            "name": "今日运势",
+            "items": {
+              "phrase": {
+                "type": "string",
+                "description": "短语",
+                "hint": "填写完整触发语句，如：看看今天运气。",
+                "default": ""
+              }
+            }
+          }
         }
       }
     }
@@ -231,6 +304,15 @@
             }
           }
         },
+        "condition": {
+          "show_advanced": true
+        }
+      },
+      "doujinshi_enabled": {
+        "type": "bool",
+        "description": "启用随机本子",
+        "hint": "关闭后不再下载本子；已有文件和撤回任务保留。",
+        "default": true,
         "condition": {
           "show_advanced": true
         }
@@ -495,60 +577,6 @@
           "lolicon": {
             "name": "Lolicon",
             "hint": "Lolicon 提供者的专属配置。",
-            "items": {
-              "image_size": {
-                "type": "string",
-                "description": "图片尺寸",
-                "default": "regular",
-                "options": [
-                  "original",
-                  "regular",
-                  "small",
-                  "thumb",
-                  "mini"
-                ],
-                "hint": "original：原图；regular：常规；small：小图。"
-              },
-              "proxy": {
-                "type": "string",
-                "description": "图片代理地址",
-                "default": "",
-                "hint": "不需要代理时留空。"
-              },
-              "aspect_ratio": {
-                "type": "string",
-                "description": "图片宽高比",
-                "default": "",
-                "options": [
-                  "",
-                  "horizontal",
-                  "vertical",
-                  "square"
-                ],
-                "hint": "留空不限制。"
-              },
-              "uid": {
-                "type": "list",
-                "description": "作者 ID",
-                "hint": "每行一个作者 ID。",
-                "default": []
-              },
-              "keyword": {
-                "type": "string",
-                "description": "搜索关键词",
-                "default": "",
-                "hint": "留空不限制。"
-              },
-              "exclude_ai": {
-                "type": "bool",
-                "description": "排除 AI 生成作品",
-                "default": true
-              }
-            }
-          },
-          "atri": {
-            "name": "Atri",
-            "hint": "Atri 提供者的专属配置。",
             "items": {
               "image_size": {
                 "type": "string",

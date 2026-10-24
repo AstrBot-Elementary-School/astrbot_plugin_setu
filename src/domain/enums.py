@@ -33,7 +33,6 @@ class ApiType(str, Enum):
     """API 提供商类型。"""
 
     LOLICON = "lolicon"
-    ATRI = "atri"
     SEXNYAN = "sexnyan"
     CUSTOM = "custom"
     ALL = "all"

@@ -18,11 +18,12 @@ from pydantic import (
     model_validator,
 )
 
+from ...domain.setu.triggers import compile_trigger
 from .messages import MessagesConfig
 
 
 class ImageSize(str, Enum):
-    """Valid image sizes for Lolicon/Atri APIs."""
+    """Valid image sizes for Lolicon APIs."""
 
     ORIGINAL = "original"
     REGULAR = "regular"
@@ -51,7 +52,6 @@ class ApiTypeStr(str, Enum):
     """API provider types."""
 
     LOLICON = "lolicon"
-    ATRI = "atri"
     SEXNYAN = "sexnyan"
     CUSTOM = "custom"
     ALL = "all"
@@ -134,7 +134,7 @@ class AccessControlModeStr(str, Enum):
 
 
 class ProviderConfig(BaseModel):
-    """Configuration for a single API provider (Lolicon or Atri)."""
+    """Configuration for a single API provider (Lolicon or SexNyan)."""
 
     image_size: ImageSize = ImageSize.REGULAR
     proxy: str = ""
@@ -192,6 +192,20 @@ class PlatformTransportConfig(BaseModel):
     local_file_allowed_roots: list[str] = Field(default_factory=list)
 
 
+class TriggerTemplateConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    template_key: Literal["setu", "doujinshi", "fortune"] = Field(
+        alias="__template_key"
+    )
+    phrase: str = ""
+
+    @model_validator(mode="after")
+    def validate_phrase(self) -> TriggerTemplateConfig:
+        compile_trigger(self.template_key, self.phrase)
+        return self
+
+
 class SetuGeneralConfig(BaseModel):
     """Setu general configuration."""
 
@@ -199,6 +213,14 @@ class SetuGeneralConfig(BaseModel):
     api_type: ApiTypeStr = ApiTypeStr.LOLICON
     content_mode: ContentModeStr = ContentModeStr.SFW
     max_count: int = Field(default=10, ge=1, le=10)
+    llm_tools_enabled: bool = True
+    natural_language_enabled: bool = True
+    trigger_templates: list[TriggerTemplateConfig] = Field(
+        default_factory=lambda: [
+            TriggerTemplateConfig(__template_key=kind)
+            for kind in ("setu", "doujinshi", "fortune")
+        ]
+    )
     tag_alias_templates: list[TagAliasTemplateConfig] = Field(default_factory=list)
 
 
@@ -208,6 +230,7 @@ class DeliveryConfig(BaseModel):
     show_advanced: bool = False
     send_mode: SendModeStr = SendModeStr.AUTO
     html_card_strategy: HtmlCardStrategyStr = HtmlCardStrategyStr.FALLBACK
+    doujinshi_enabled: bool = True
     doujinshi_send_mode: DoujinshiSendModeStr = DoujinshiSendModeStr.PDF
     doujinshi_max_page: int = Field(default=0, ge=0)
     r18_docx_mode: bool = True
@@ -518,8 +541,7 @@ class SetuPluginConfig(SessionOverridesConfig):
     @property
     def exclude_ai(self) -> bool:
         """Get exclude AI."""
-        provider = "atri" if self.api_type == "atri" else "lolicon"
-        return self._provider_config(provider).exclude_ai
+        return self._provider_config("lolicon").exclude_ai
 
     @property
     def image_size(self) -> str:
@@ -546,37 +568,6 @@ class SetuPluginConfig(SessionOverridesConfig):
     def keyword(self) -> str:
         """Get keyword."""
         return self._provider_config("lolicon").keyword
-
-    @property
-    def atri_image_size(self) -> str:
-        """Get Atri image size."""
-        return self._provider_config("atri").image_size.value
-
-    @property
-    def atri_proxy(self) -> str:
-        """Get Atri proxy."""
-        return self._provider_config("atri").proxy
-
-    @property
-    def atri_aspect_ratio(self) -> str:
-        """Get Atri aspect ratio."""
-        config = self._provider_config("atri")
-        return config.aspect_ratio.value if config.aspect_ratio else ""
-
-    @property
-    def atri_uid(self) -> list[int]:
-        """Get Atri UID list."""
-        return self._provider_config("atri").uid
-
-    @property
-    def atri_keyword(self) -> str:
-        """Get Atri keyword."""
-        return self._provider_config("atri").keyword
-
-    @property
-    def atri_exclude_ai(self) -> bool:
-        """Get Atri exclude AI."""
-        return self._provider_config("atri").exclude_ai
 
     @property
     def sexnyan_proxy(self) -> str:

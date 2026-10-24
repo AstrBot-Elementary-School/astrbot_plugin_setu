@@ -10,10 +10,12 @@ from typing import Any
 from astrbot.core import AstrBotConfig
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ...shared import get_logger
 from ...shared.config.models import (
     AccessControlModeStr,
     SafetyConfig,
     SessionOverridesConfig,
+    TriggerTemplateConfig,
 )
 from .legacy_migration import TRUE_VALUES, apply_legacy_config_aliases
 
@@ -255,6 +257,22 @@ def migrate_plugin_config(data_dir: Path, config: AstrBotConfig) -> None:
     marker = data_dir / MIGRATION_MARKER
     original = dict(config.items())
     candidate = apply_legacy_config_aliases(deepcopy(original), [])
+    general = candidate.get("setu_general", {})
+    if "trigger_templates" in general:
+        if not isinstance(general["trigger_templates"], list):
+            raise ValueError("trigger_templates 必须是 list")
+        for item in general["trigger_templates"]:
+            TriggerTemplateConfig.model_validate(item)
+    migrated_atri = general.get("api_type") == "atri"
+    if migrated_atri:
+        general["api_type"] = "lolicon"
+    api = candidate.get("api", {})
+    if isinstance(api, dict) and isinstance(api.get("provider_overrides"), list):
+        api["provider_overrides"] = [
+            item
+            for item in api["provider_overrides"]
+            if not isinstance(item, dict) or item.get("__template_key") != "atri"
+        ]
     if marker.exists():
         if marker.read_text(encoding="utf-8") != "1":
             raise ValueError(f"迁移标记无效：{marker}")
@@ -302,3 +320,8 @@ def migrate_plugin_config(data_dir: Path, config: AstrBotConfig) -> None:
             temporary = marker.with_suffix(".tmp")
             temporary.write_text("1", encoding="utf-8")
             temporary.replace(marker)
+
+    if migrated_atri:
+        get_logger().warning(
+            "Atri 图片源已移除，已将 api_type=atri 保存为 lolicon；随机本子仍使用 Atri 服务"
+        )
