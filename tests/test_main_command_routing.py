@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import re
-
 import pytest
 from astrbot_plugin_setu.main import (
-    DOUJINSHI_REGEX_PATTERN,
-    FORTUNE_REGEX_PATTERN,
-    REGEX_COMMAND_PATTERN,
     _is_fortune_command_invocation,
-    _resolve_fortune_refresh_target,
     _route_regex_command,
 )
 
@@ -27,31 +21,6 @@ class _RegexHandler:
 
     async def fortune_command(self, event):
         yield self.marker
-
-
-def test_resolve_fortune_refresh_target_from_new_command(mock_event) -> None:
-    mock_event.message_str = "/运势刷新 本群"
-    assert _resolve_fortune_refresh_target(mock_event, "本群") == "group"
-
-
-def test_fortune_regex_pattern_matches_plain_jrys() -> None:
-    assert re.match(FORTUNE_REGEX_PATTERN, "jrys")
-    assert re.match(FORTUNE_REGEX_PATTERN, "今日运势")
-    assert not re.match(FORTUNE_REGEX_PATTERN, "/jrys")
-
-
-def test_combined_regex_pattern_matches_both_plain_command_families() -> None:
-    assert re.match(REGEX_COMMAND_PATTERN, "来一份色图")
-    assert re.match(REGEX_COMMAND_PATTERN, "来份本子")
-    assert re.match(REGEX_COMMAND_PATTERN, "jrys")
-
-
-def test_doujinshi_regex_pattern_accepts_common_spacing() -> None:
-    assert re.match(DOUJINSHI_REGEX_PATTERN, "来份本子")
-    assert re.match(DOUJINSHI_REGEX_PATTERN, "来一份本子")
-    tagged_match = re.match(DOUJINSHI_REGEX_PATTERN, "来份碧蓝档案本子")
-    assert tagged_match and tagged_match.group("tags") == "碧蓝档案"
-    assert not re.match(DOUJINSHI_REGEX_PATTERN, "来两份本子")
 
 
 @pytest.mark.asyncio

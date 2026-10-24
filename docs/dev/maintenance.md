@@ -24,8 +24,8 @@
 - 新增配置项时，以下文件必须同步更新：
   - `_conf_schema.json`
   - `src/shared/config/models.py`
-  - 相关测试
-- 内置提示位于 `src/shared/config/messages.py`；新增 key 时同步占位符文档和测试，不恢复用户自定义消息入口。
+  - 受影响的核心回归测试（保留范围见 [测试说明](./testing.md#长期保留哪些测试)）
+- 内置提示位于 `src/shared/config/messages.py`；新增 key 时同步占位符文档，涉及已知故障或兼容边界时补回归测试，不恢复用户自定义消息入口。
 - sender 和 provider 参数的行为见[配置参考](../usage/configuration.md)及对应源码。
 
 - 配置文案不用 Unicode 表情或 `obvious_hint`；标题写用途，提示只写条件、格式和必要限制。
@@ -42,15 +42,7 @@
 
 ## 测试与检查
 
-常用命令见 [`testing.md`](./testing.md)。涉及下列行为时，优先补回归测试：
-
-- 配置模型新增或变更
-- 消息配置 key 和占位符解析
-- provider 参数和 URL 构造
-- sender 降级和 HTML 卡片 fallback
-- 运势预生成和缓存生命周期
-- 访问控制判定和黑白名单互斥
-- 命令路由和触发去重
+测试的保留范围和常用命令见 [testing.md](./testing.md)。维护时优先运行受影响的核心回归，不为默认值、简单转发或稳定的低风险逻辑补重复测试。修改共享夹具或批量删减测试时，运行保留的测试，确认收集、隔离和核心断言仍然有效。
 
 ## 仓库体积
 

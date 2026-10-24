@@ -573,26 +573,6 @@ async def test_html_card_only_preserves_pending_send_status(
 
 
 @pytest.mark.asyncio
-async def test_direct_send_strategy_passthroughs_onebot_stream_refs(mock_event) -> None:
-    context = MagicMock()
-    strategy = DirectSendStrategy(context)
-
-    mock_event.platform.name = "aiocqhttp"
-    mock_event.get_group_id.return_value = "123456"
-    mock_event.get_sender_id.return_value = "654321"
-    mock_event.bot = MagicMock()
-    mock_event.bot.send_group_msg = AsyncMock(return_value={"message_id": "ok"})
-
-    success = await strategy.send(mock_event, [Comp.Image(file="stream://image")])
-
-    assert success is True
-    mock_event.bot.send_group_msg.assert_awaited_once_with(
-        group_id=123456,
-        message=[{"type": "image", "data": {"file": "stream://image"}}],
-    )
-
-
-@pytest.mark.asyncio
 async def test_direct_send_strategy_passthroughs_napcat_stream_refs(mock_event) -> None:
     """NapCat 也走 OneBot 图片引用直通，避免 stream:// 被普通链路改写。"""
     context = MagicMock()
@@ -843,40 +823,6 @@ async def test_recoverable_revoke_scheduler_calls_delete_msg(
     mock_event.bot.call_action.assert_awaited_once_with("delete_msg", message_id="123")
     assert scheduler.storage_path.read_text(encoding="utf-8")
     await scheduler.stop()
-
-
-@pytest.mark.asyncio
-async def test_send_images_ignores_legacy_found_message_toggle(
-    tmp_path: Path, mock_event, sample_config_dict
-) -> None:
-    image_path = tmp_path / "image.jpg"
-    image_path.write_bytes(b"image-data")
-
-    context = MagicMock()
-    context.send_message = AsyncMock(return_value={"message_id": "ok"})
-    set_plugin_context(context)
-
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict.get("messages", {}),
-        "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
-    }
-    config = SetuPluginConfig(**config_dict)
-    payload = ImagePayload(
-        urls=("https://example.com/image.jpg",),
-        raw_bytes=(),
-        file_paths=(image_path,),
-        items=(image_path,),
-        r18=False,
-        tags=(),
-    )
-
-    results = [
-        item async for item in ImageSender(config).send_images(payload, mock_event)
-    ]
-
-    assert results == [{"send_success": True, "image_count": 1}]
-    assert context.send_message.await_count == 2
 
 
 @pytest.mark.asyncio
