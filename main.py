@@ -116,7 +116,7 @@ def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
     if _is_fortune_command_invocation(event) or (
         getattr(event, "is_at_or_wake_command", False)
         and _get_invoked_command(event)
-        in {"setu", "随机本子", "本子", "doujinshi", "运势刷新"}
+        in {"setu", "随机本子", "本子", "doujinshi", "刷新运势"}
     ):
         return None
     return match_trigger(
@@ -158,7 +158,7 @@ def _resolve_fortune_refresh_target(event: AstrMessageEvent, args: str) -> str:
     target = FORTUNE_REFRESH_ARG_ALIASES.get((args or "").strip().lower())
     if target:
         return target
-    raise ValueError("用法：/运势刷新 [我|本群|全局]")
+    raise ValueError("用法：/刷新运势 [我|本群|全局]")
 
 
 class SetuPlugin(Star):
@@ -367,11 +367,11 @@ class SetuPlugin(Star):
         async for result in _fortune_handler.fortune_command(event):
             yield result
 
-    @filter.command("运势刷新")
+    @filter.command("刷新运势")
     async def fortune_refresh_command(
         self, event: AstrMessageEvent, args: str = ""
     ) -> AsyncGenerator[Any, None]:
-        """运势刷新 [我|本群|全局]"""
+        """刷新运势 [我|本群|全局]"""
         if _fortune_handler is None:
             yield event.plain_result("插件未初始化")
             return
