@@ -11,7 +11,8 @@ import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent
 from astrbot.core.provider.register import llm_tools
 
-from ....domain.access_control import AccessPolicy
+from ....application.session_config import SessionConfigService
+from ....application.setu import ImagePayload
 from ....domain.access_control.service import AccessControlService
 from ....domain.fortune import (
     FortuneGenerationRequest,
@@ -20,19 +21,18 @@ from ....domain.fortune import (
 from ....domain.fortune.service import FortuneService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
+from ....shared.config.messages import MessagesConfig
 from ... import get_access_control_repo, get_provider
 from ...permission_service import PermissionService
 from ...persistence import get_fortune_repo
 from ...providers import init_provider_from_config
-from ...sending import DirectSendStrategy, schedule_revoke
+from ...sending import DirectSendStrategy, ImageSender, schedule_revoke
 from ...sending.platform_capabilities import is_onebot_like_platform
 from ..config import get_config, get_plugin_context
 from ..fortune_renderer import FortuneRenderer
+from ..session_identity import get_event_session_identity
 
 logger = get_logger()
-
-# Regex pattern directly in decorator (not in constants)
-FORTUNE_REGEX_PATTERN = r"^(?!/)(今日运势|jrys)$"
 
 
 class FortuneCommandHandler:
@@ -43,7 +43,7 @@ class FortuneCommandHandler:
     """
 
     def __init__(self) -> None:
-        self._renderer = FortuneRenderer()
+        self._renderer: FortuneRenderer | None = None
 
     # ==================== Command Handlers ====================
 
@@ -51,6 +51,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /今日运势 command (/今日运势, /jrys)."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         config = get_config()
         if not config:
             if result := self._plain(event, self._message("config_not_loaded")):
@@ -69,23 +73,44 @@ class FortuneCommandHandler:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
             result = await service.get_or_create_fortune(request)
-            fortune_image = await self._render_fortune_image(result, service)
-            if fortune_image:
-                chain = [Comp.Image.fromBytes(fortune_image)]
-                if await self._send_fortune_with_auto_revoke(event, chain, config):
-                    return
-                yield event.chain_result(chain)
-            else:
-                text = self._format_fortune(result)
-                if await self._send_fortune_with_auto_revoke(
-                    event, [Comp.Plain(text)], config
-                ):
-                    return
-                yield event.plain_result(text)
+            if await self._send_fortune_image(event, result, service, config):
+                return
+            text = self._message(
+                "fortune_image_failed", fortune=self._format_fortune(result)
+            )
+            if await self._send_fortune_with_auto_revoke(
+                event, [Comp.Plain(text)], config
+            ):
+                return
+            yield event.plain_result(text)
         except Exception as e:
             text = self._message("fortune_get_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+
+    async def _send_fortune_image(
+        self,
+        event: AstrMessageEvent,
+        record: FortuneRecord,
+        service: FortuneService,
+        config: Any,
+    ) -> bool:
+        """Share image delivery across commands and tools; uncertain receipts must not trigger duplicates."""
+        try:
+            image = await self._render_fortune_image(record, service)
+            if not image:
+                return False
+            payload = ImagePayload(urls=(), raw_bytes=(image,), r18=False, tags=())
+            sender = ImageSender(config, logger, content_type="fortune")
+            sent = False
+            async for result in sender.send_images(payload, event):
+                if isinstance(result, dict) and result.get("send_success"):
+                    sent = True
+            # The caller supplies the text fortune instead of the generic image-failure notice.
+            return sent
+        except Exception:
+            logger.exception("[fortune] image delivery failed; falling back to text")
+            return False
 
     async def _send_fortune_with_auto_revoke(
         self,
@@ -129,7 +154,11 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新今日运势 command."""
-        has_perm, msg = PermissionService.require_admin(event)
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
+        has_perm, msg = await self._check_self_refresh(event)
         if not has_perm:
             if result := self._plain(event, msg):
                 yield result
@@ -157,6 +186,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新本群今日运势 command."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         has_perm, msg = PermissionService.require_admin(event)
         if not has_perm:
             if result := self._plain(event, msg):
@@ -191,6 +224,10 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /刷新全局今日运势 command."""
+        if unavailable := self._unavailable(tool=False):
+            yield event.plain_result(unavailable)
+            return
+
         has_perm, msg = PermissionService.require_super_user(event)
         if not has_perm:
             if result := self._plain(event, msg):
@@ -215,140 +252,13 @@ class FortuneCommandHandler:
             if result := self._plain(event, text):
                 yield result
 
-    async def enable_fortune_group_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /开启运势 command (enable Fortune for current group)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        group_id = event.get_group_id()
-        if not group_id:
-            if result := self._plain(event, self._message("fortune_group_only")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_blocked_group(str(group_id))
-        if result := self._plain(event, self._message("fortune_enabled_group_done")):
-            yield result
-
-    async def disable_fortune_group_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /关闭运势 command (disable Fortune for current group)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        group_id = event.get_group_id()
-        if not group_id:
-            if result := self._plain(event, self._message("fortune_group_only")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_blocked_group(str(group_id))
-        if result := self._plain(event, self._message("fortune_disabled_group_done")):
-            yield result
-
-    async def block_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /拉黑运势用户 command (add user to Fortune blacklist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip() or event.get_sender_id()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_blocked_user(str(target_id))
-        text = self._message("fortune_block_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def unblock_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /解除运势拉黑 command (remove user from Fortune blacklist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_blocked_user(str(target_id))
-        text = self._message("fortune_unblock_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def trust_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /信任运势用户 command (add user to Fortune whitelist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip() or event.get_sender_id()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.add_fortune_whitelist_user(str(target_id))
-        text = self._message("fortune_trust_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
-    async def untrust_fortune_user_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /取消运势信任 command (remove user from Fortune whitelist)."""
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        target_id = args.strip()
-        if not target_id:
-            if result := self._plain(event, self._message("fortune_missing_user_id")):
-                yield result
-            return
-
-        repo = get_access_control_repo()
-        await repo.remove_fortune_whitelist_user(str(target_id))
-        text = self._message("fortune_untrust_user_done", user_id=target_id)
-        if result := self._plain(event, text):
-            yield result
-
     # ==================== LLM Tool Handlers ====================
 
     async def _llm_get_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for getting today's fortune."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         config = get_config()
         if not config:
             return self._message("config_not_loaded")
@@ -363,13 +273,20 @@ class FortuneCommandHandler:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
             result = await service.get_or_create_fortune(request)
-            return f"今日运势: {result.title}, 星级: {result.star_count}/{result.max_stars}"
+            sent = await self._send_fortune_image(event, result, service, config)
+            return self._message(
+                "fortune_image_submitted" if sent else "fortune_image_failed",
+                fortune=self._format_fortune(result),
+            )
         except Exception as e:
             return self._message("fortune_get_failed", error=e)
 
     async def _llm_refresh_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing today's fortune."""
-        has_perm, msg = PermissionService.require_admin(event)
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
+        has_perm, msg = await self._check_self_refresh(event)
         if not has_perm:
             return msg
 
@@ -389,6 +306,9 @@ class FortuneCommandHandler:
 
     async def _llm_refresh_group_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing group fortunes."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         has_perm, msg = PermissionService.require_admin(event)
         if not has_perm:
             return msg
@@ -411,6 +331,9 @@ class FortuneCommandHandler:
 
     async def _llm_refresh_all_fortune(self, event: AstrMessageEvent) -> str:
         """LLM tool handler for refreshing all fortunes."""
+        if unavailable := self._unavailable(tool=True):
+            return unavailable
+
         has_perm, msg = PermissionService.require_super_user(event)
         if not has_perm:
             return msg
@@ -437,30 +360,9 @@ class FortuneCommandHandler:
         service = FortuneService(repository=repo)
         access_repo = get_access_control_repo()
         access_service = AccessControlService(access_repo)
-        modes = access_repo.get_modes()
 
         async def can_pregenerate(request: FortuneGenerationRequest) -> bool:
-            policy = AccessPolicy.for_session(
-                user_id=request.user_id,
-                group_id=request.group_id,
-                user_mode=modes.get(
-                    "fortune_user_access_control_mode",
-                    config.fortune_user_access_control_mode if config else "none",
-                ),
-                group_mode=modes.get(
-                    "fortune_group_access_control_mode",
-                    config.fortune_group_access_control_mode if config else "none",
-                ),
-            )
-            allowed, reason = await access_service.check_fortune_access(policy)
-            if not allowed:
-                logger.debug(
-                    "[fortune] skip pregeneration by access-control: user=%s, group=%s, reason=%s",
-                    request.user_id,
-                    request.group_id or "-",
-                    reason or "-",
-                )
-            return allowed
+            return access_service.check_access("fortune", request.session_id)
 
         records = await service.pregenerate_active_user_records(
             days=days,
@@ -486,28 +388,31 @@ class FortuneCommandHandler:
 
     # ==================== Helper Methods ====================
 
-    async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
-        """Check if user/group has access to Fortune feature."""
-        user_id = event.get_sender_id()
-        group_id = event.get_group_id()
+    def _unavailable(self, *, tool: bool = False) -> str:
+        config = get_config()
+        if config is None:
+            return self._message("config_not_loaded")
+        if not config.fortune.enabled:
+            return self._message("feature_disabled", feature="今日运势")
+        if tool and not config.setu_general.llm_tools_enabled:
+            return self._message("feature_disabled", feature="LLM 工具")
+        return ""
 
-        repo = get_access_control_repo()
-        modes = repo.get_modes()
-        policy = AccessPolicy.for_session(
-            user_id=user_id,
-            group_id=group_id,
-            user_mode=modes.get(
-                "fortune_user_access_control_mode",
-                config.fortune_user_access_control_mode if config else "none",
-            ),
-            group_mode=modes.get(
-                "fortune_group_access_control_mode",
-                config.fortune_group_access_control_mode if config else "none",
-            ),
+    async def _check_self_refresh(self, event: AstrMessageEvent) -> tuple[bool, str]:
+        config = get_config()
+        allowed, message = await self._check_access(event, config)
+        if not allowed:
+            return allowed, message
+        if config.fortune.allow_user_refresh:
+            return True, ""
+        return PermissionService.require_admin(event)
+
+    async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
+        """Check access using the complete conversation SID."""
+        allowed = AccessControlService(get_access_control_repo()).check_access(
+            "fortune", get_event_session_identity(event).session_id
         )
-        service = AccessControlService(repo)
-        allowed, reason = await service.check_fortune_access(policy)
-        return allowed, reason or ""
+        return allowed, "" if allowed else self._message("access_denied")
 
     def _build_fortune_request(
         self, event: AstrMessageEvent
@@ -527,6 +432,7 @@ class FortuneCommandHandler:
             user_id=user_id,
             username=username,
             group_id=str(group_id) if group_id else None,
+            session_id=get_event_session_identity(event).session_id,
         )
 
     def _format_fortune(self, result: FortuneRecord) -> str:
@@ -552,7 +458,7 @@ class FortuneCommandHandler:
         if cached:
             return cached
 
-        bg_bytes, img_url = await self._get_fortune_background_image()
+        bg_bytes, img_url = await self._get_fortune_background_image(record.session_id)
         if not bg_bytes:
             return None
 
@@ -568,6 +474,8 @@ class FortuneCommandHandler:
             "theme_color": record.theme_color,
         }
         try:
+            if self._renderer is None:
+                self._renderer = FortuneRenderer()
             image_bytes = await self._renderer.render_to_image(
                 fortune_dict, image_base64=image_base64
             )
@@ -578,16 +486,19 @@ class FortuneCommandHandler:
             logger.warning("[fortune] failed to render fortune image: %s", exc)
             return None
 
-    async def _get_fortune_background_image(self) -> tuple[bytes | None, str | None]:
+    async def _get_fortune_background_image(
+        self, session_id: str | None = None
+    ) -> tuple[bytes | None, str | None]:
         config = get_config()
-        if not config:
+        if not config or not config.fortune.enabled:
             return None, None
         try:
             init_provider_from_config(config)
             provider = get_provider()
 
-            tags = [t.strip() for t in config.fortune.tags.split(",") if t.strip()]
-            mode = config.fortune.content_mode.value
+            settings = SessionConfigService(config).resolve(session_id)
+            tags = [t.strip() for t in settings.fortune_tags.split(",") if t.strip()]
+            mode = settings.fortune_content_mode
             if mode == "r18":
                 is_r18 = True
             elif mode == "mix":
@@ -620,12 +531,7 @@ class FortuneCommandHandler:
             return None, None
 
     def _message(self, key: str, **kwargs: Any) -> str:
-        config = get_config()
-        if config and hasattr(config, "resolve_message"):
-            text = config.resolve_message(key, **kwargs)
-            if text is not None:
-                return text
-        return ""
+        return MessagesConfig.resolve_message(key, **kwargs) or ""
 
 
 # ==================== LLM Tools Registration ====================
@@ -633,19 +539,26 @@ class FortuneCommandHandler:
 
 def register_llm_tools() -> None:
     """Register Fortune LLM tools."""
+    config = get_config()
+    if (
+        config is None
+        or not config.fortune.enabled
+        or not config.setu_general.llm_tools_enabled
+    ):
+        return
     _handler = FortuneCommandHandler()
     tools = [
         (
             "get_today_fortune",
             _handler._llm_get_fortune,
             [],
-            "Get today's fortune for the user.",
+            "Send today's fortune image; return a text fortune if image delivery fails.",
         ),
         (
             "refresh_my_fortune",
             _handler._llm_refresh_fortune,
             [],
-            "Refresh my today's fortune (admin only).",
+            "Refresh my today's fortune when permitted by the plugin configuration.",
         ),
         (
             "refresh_group_fortune",

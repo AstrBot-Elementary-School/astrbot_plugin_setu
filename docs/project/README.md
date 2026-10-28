@@ -1,11 +1,12 @@
 # 项目文档
 
-本目录用于说明插件是什么、为什么这样设计、当前做到什么程度，以及后续准备往哪里走。
+这里介绍插件的功能、设计取舍和当前实现。
 
 ## 目录
 
 - [`overview.md`](./overview.md): 项目定位、能力边界、核心特性
-- [`architecture.md`](./architecture.md): 架构全景、设计理由、核心模块关系
+- [`architecture.md`](./architecture.md): 分层、启动流程、调用链和数据归属
+- [`sending-limits.md`](./sending-limits.md): OneBot/NapCat 传输实测与排查
 
 ## 职责边界
 

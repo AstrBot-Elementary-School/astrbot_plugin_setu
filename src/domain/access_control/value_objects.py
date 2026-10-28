@@ -1,36 +1,29 @@
 """Access-control domain value objects."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
 class AccessPolicy:
-    """Value object for access-control policy."""
+    """Complete SID policy; group members share their conversation's access."""
 
-    user_id: str | None
-    group_id: str | None
-    user_mode: str
-    group_mode: str
+    mode: Literal["none", "blacklist", "whitelist"] = "none"
+    blocked_sids: tuple[str, ...] = ()
+    whitelist_sids: tuple[str, ...] = ()
 
-    @classmethod
-    def for_user(cls, user_id: str, user_mode: str = "none") -> AccessPolicy:
-        """Create policy for user-only access control."""
-        return cls(user_id, None, user_mode, "none")
-
-    @classmethod
-    def for_group(cls, group_id: str, group_mode: str = "none") -> AccessPolicy:
-        """Create policy for group-only access control."""
-        return cls(None, group_id, "none", group_mode)
-
-    @classmethod
-    def for_session(
-        cls,
-        user_id: str | None,
-        group_id: str | None,
-        user_mode: str = "none",
-        group_mode: str = "none",
-    ) -> AccessPolicy:
-        """Create policy for full session access control."""
-        return cls(user_id, group_id, user_mode, group_mode)
+    def allows(self, session_id: str | None) -> bool:
+        if self.mode == "none":
+            return True
+        # Old fortune records without SID must not bypass restricted policies.
+        if (
+            not session_id
+            or len(session_id.split(":", 2)) != 3
+            or not all(session_id.split(":", 2))
+        ):
+            return False
+        if self.mode == "blacklist":
+            return session_id not in self.blocked_sids
+        if self.mode == "whitelist":
+            return session_id in self.whitelist_sids
+        raise ValueError(f"Invalid access-control mode: {self.mode}")

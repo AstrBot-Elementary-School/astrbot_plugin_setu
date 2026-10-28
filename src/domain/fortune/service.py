@@ -82,6 +82,7 @@ class FortuneService:
             extra_message=extra_message,
             theme_color=theme_color,
             group_id=request.group_id,
+            session_id=request.session_id,
         )
 
         await self._repo.save_fortune(record)
@@ -199,6 +200,7 @@ class FortuneService:
         changed = (
             existing.username != request.username
             or existing.group_id != request.group_id
+            or existing.session_id != request.session_id
         )
         if not changed:
             return existing
@@ -206,6 +208,7 @@ class FortuneService:
         updated = existing.with_presentation(
             username=request.username,
             group_id=request.group_id,
+            session_id=request.session_id,
             invalidate_image_cache=True,
         )
         await self._repo.delete_cached_image(existing.user_id, existing.date_str)

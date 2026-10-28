@@ -1,0 +1,49 @@
+name: PR Template Validation
+
+on:
+  pull_request_target:
+    branches: [master]
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: pr-template-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate PR Template
+    runs-on: ubuntu-latest
+    steps:
+      # 只运行受信基底中的脚本，不 checkout 或执行 PR 中的代码。
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            // Template validation ported from pixiv-cli/tools/prmeta (MIT), FlanChanXwO.
+            const {data: pr} = await github.rest.pulls.get({
+              ...context.repo, pull_number: context.issue.number
+            });
+            const clean = (pr.body || '').replace(/<!--[\s\S]*?-->/g, '');
+            const headings = [
+              ['Changes', /^##\s+变更点\s*\/\s*Changes\s*$/m],
+              ['Verification', /^##\s+验证步骤\s*\/\s*Verification\s*$/m],
+              ['Checklist', /^##\s+检查清单\s*\/\s*Checklist\s*$/m]
+            ];
+            const missing = headings.filter(([, pattern]) => !pattern.test(clean)).map(([name]) => name);
+            const unchecked = /^\s*-\s*\[\s\]\s+/m.test(clean);
+            const description = missing.length
+              ? `Missing required PR section(s): ${missing.join(', ')}.`
+              : unchecked ? 'Complete all required checklist items.'
+              : 'Required PR sections and checklist are complete.';
+            const valid = missing.length === 0 && !unchecked;
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: pr.head.sha,
+              state: valid ? 'success' : 'failure',
+              context: 'PR Template Validation', description,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+            if (!valid) core.setFailed(description);

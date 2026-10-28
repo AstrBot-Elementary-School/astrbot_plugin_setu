@@ -1,80 +1,27 @@
-# AGENTS.md — astrbot_plugin_setu
+# 项目导航
 
-本文件只保留协作 agent 的入口规则。业务细节按需阅读 `docs/project/`，开发维护规则优先阅读 `docs/dev/maintenance.md`。
+`astrbot_plugin_setu` 是 AstrBot 随机图片、随机本子 PDF/ZIP 和今日运势插件，按 domain、application、infrastructure、shared 分层。
 
-## 沟通语言
+## 按任务找文档
 
-- 与用户沟通必须使用中文。
+- 了解功能和使用方式：[README.md](README.md)、[命令](docs/usage/commands.md)、[LLM 工具](docs/usage/ai-tools.md)。
+- 调整全局配置、会话模板或 SID 权限：[配置参考](docs/usage/configuration.md)。
+- 理解模块关系、启动流程和数据归属：[架构](docs/project/architecture.md)、[项目概览](docs/project/overview.md)。
+- 准备本地环境或运行检查：[环境搭建](docs/dev/setup.md)、[测试](docs/dev/testing.md)。
+- 修改配置兼容或迁移流程：[维护说明](docs/dev/maintenance.md#配置与迁移)、[升级与恢复](docs/usage/configuration.md#升级与恢复)。
+- 排查 OneBot/NapCat 多图发送：[传输上限与诊断](docs/project/sending-limits.md)。
+- 提交贡献或同步文档：[贡献说明](docs/dev/contributing.md)、[工程协作](docs/dev/engineering-principles.md)。
 
-## 项目形态
+## 按模块找代码
 
-- 这是一个 AstrBot 随机图片与随机本子文件插件，采用 DDD 分层。
-- 管理功能属于 Plugin Pages（统一 dashboard 页面，含会话配置和访问控制标签页）。
+- 入口注册、生命周期和命令路由：`main.py`。
+- 图片请求与标签解析：`src/application/setu/`；标签规则：`src/domain/setu/`。
+- 会话模板解析：`src/application/session_config/`；访问控制：`src/domain/access_control/`。
+- 运势生成：`src/domain/fortune/`；命令适配与渲染：`src/infrastructure/astrbot/`。
+- 图片源适配：`src/infrastructure/providers/`；本子文件生成：`src/infrastructure/doujinshi/`。
+- 图片与文件发送、传输和撤回：`src/infrastructure/sending/`。
+- 配置界面：`_conf_schema.json`；配置模型与内置提示：`src/shared/config/`；迁移：`src/infrastructure/config/`。
+- 运行数据存储：`src/infrastructure/persistence/`；发送缓存：`src/shared/send_cache.py`。
+- 运势卡片模板：`templates/`；测试与夹具：`tests/`。
 
-主要目录：
-
-- `src/domain/`: 领域实体、值对象、标签解析、访问控制。
-- `src/application/`: 用例、DTO、端口接口、会话配置服务。
-- `src/infrastructure/`: 配置、持久化、provider、随机本子文件、sender、AstrBot 适配。
-- `src/shared/`: 配置模型、日志、发送缓存。
-- `pages/`: Plugin Pages 前端（统一 dashboard）。
-- `templates/`: 运势卡片 HTML 模板与字体。
-- `tests/`: 单元测试、集成测试与测试夹具。
-
-## 阅读入口
-
-- 任何改动前先看：`docs/dev/maintenance.md`
-- 需要业务背景时看：`docs/project/overview.md`
-- 修改模块关系和启动分工时看：`docs/project/architecture.md`
-- 修改消息配置、提示文案或占位符时看：`src/shared/config/models.py`
-- 修改 provider 适配或 sender 策略时看：`src/infrastructure/providers/` 和 `src/infrastructure/sending/`
-
-## 硬约束
-
-- 不要把业务逻辑编排塞进 `main.py`；保持注册和路由专注。
-- 插件运行数据必须通过 `StarTools.get_data_dir(self.name)` 获取，不要硬编码路径。
-- 从插件目录本地调试时，不要创建或使用 `<plugin>/data` 作为运行态目录。
-- 所有用户可见提示必须走 `MessagesConfig` / `resolve_message()`，不要在 handler 内硬编码提示文案。
-- 随机本子由 `infrastructure/doujinshi/` 按配置生成 PDF 或 ZIP；所有平台统一发送普通 `File`，不再包装 `Nodes` 合并转发。OneBot/NapCat 若启用自动撤回，则在发送普通文件时取得消息 ID 并进入统一可恢复撤回队列。
-- 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
-- `delivery.doujinshi_send_mode` 选择本子文件格式（`pdf` 或 `archive`，默认 `pdf`）；`delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理，三者共用 `auto_revoke_delay`。OneBot/NapCat 本子普通文件发送若启用自动撤回，必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
-- 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
-- R18 DOCX 开启时，由注入的封装服务按顺序写入全部图片并发送普通 File；生成或发送失败使用配置提示并终止，文件保留发送缓存 TTL 后清理。
-
-## 文档纪律
-
-- 文档不是可选收尾。行为、边界、入口、配置、流程或维护约定变化时，必须同步更新对应 `docs/`。
-- 下列变化默认必须同步文档：
-  - 命令行为或参数变化
-  - Plugin Pages 交互变化
-  - 配置项、默认值或兼容规则变化
-  - provider、sender、消息配置算法变化
-  - 访问控制判定逻辑变化
-- 如果修改 repo-wide 维护规则或 agent 入口约定，同步更新 `AGENTS.md` 和 `CLAUDE.md`。
-
-## 测试与检查命令
-
-从插件目录运行：
-
-```bash
-PYTHONPATH=/path/to/data/plugins python -m pytest tests/ -v
-PYTHONPATH=/path/to/data/plugins python -m pytest tests/infrastructure/test_fortune_pregeneration.py -q
-RUFF_CACHE_DIR=.ruff_cache python -m ruff check .
-python -m ruff format .
-python -m py_compile main.py src/**/*.py tests/**/*.py
-```
-
-从 AstrBot 项目根目录运行：
-
-```bash
-uv run ruff format data/plugins/astrbot_plugin_setu
-uv run ruff check data/plugins/astrbot_plugin_setu
-```
-
-## 更新策略
-
-当架构、命令面、发送策略、配置路径或测试 / lint 流程变化时，同步更新 `CLAUDE.md` 和 `AGENTS.md`。
-
-## 篇幅约束
-
-`AGENTS.md` 和 `CLAUDE.md` 均不得超过 100 行；内容过长时拆入 `docs/dev/` 或 `docs/project/`。
+完整文档索引见 [docs/README.md](docs/README.md)。

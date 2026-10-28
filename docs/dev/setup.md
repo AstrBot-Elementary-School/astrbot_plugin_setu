@@ -18,7 +18,6 @@ AstrBot/data/plugins/astrbot_plugin_setu
 
 ```text
 assets/      # 静态资源与预览图
-pages/       # Plugin Pages 前端
 src/         # DDD 主代码
 tests/       # 单元与集成测试
 docs/        # 项目、开发、使用文档
@@ -30,9 +29,9 @@ templates/   # 运势卡片 HTML 模板与字体资源
 
 ### 启动入口
 
-项目运行通常启动 AstrBot 主仓库顶层入口，而不是直接运行插件目录内的文件。
+从 AstrBot 根目录启动运行环境，不直接执行插件文件。
 
-本地工作区常见入口：
+AstrBot 源码工作区的常见入口：
 
 ```bash
 python /path/to/AstrBot/main.py
@@ -48,16 +47,11 @@ python /path/to/AstrBot/main.py
 
 ### 启动结构
 
-启动分工见 [`../project/architecture.md`](../project/architecture.md)。本地调试时保持 `main.py` 专注注册和路由，不要把业务逻辑塞进入口文件。
+启动分工见 [`../project/architecture.md`](../project/architecture.md)。`main.py` 负责注册和路由，具体处理逻辑位于 application/domain 与基础设施适配器。
 
-### Plugin Pages
+### 配置调试
 
-前端统一位于 `pages/dashboard/`，主要由：
-
-- `index.html`
-- `app.js`
-
-构成。Dashboard 内通过标签页提供会话配置和访问控制，前端行为依赖 AstrBot Plugin Pages bridge，不是独立 SPA。
+在 AstrBot 插件配置中编辑 `session_configs` 与 `safety`，保存后重载。首次迁移请使用合成运行数据验证，不要在插件目录创建 `data/`。独立 worktree 运行测试时，显式设置 `ASTRBOT_ROOT` 为现有 AstrBot 根目录。
 
 ## 测试与检查命令
 
@@ -66,5 +60,5 @@ python /path/to/AstrBot/main.py
 ## 改动前先确认的几件事
 
 - 改的是命令语义、配置模型，还是 UI 行为？
-- 这次改动是否会影响 provider 发送或缓存兼容性？
+- 这次改动是否影响图片源、发送或缓存兼容性？
 - 这次改动是否需要同步更新 README 与 docs？

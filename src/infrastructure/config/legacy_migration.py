@@ -5,7 +5,21 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ...application.session_config.keys import TRUE_VALUES
+from ...shared.config.models import HtmlCardStrategyStr
+
+TRUE_VALUES = {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "on",
+    "enable",
+    "enabled",
+    "开",
+    "开启",
+    "启用",
+    "是",
+}
 
 
 def record_config_heal(changes: list[str], path: str, reason: str) -> None:
@@ -20,6 +34,26 @@ def apply_legacy_config_aliases(
     """Migrate legacy config keys before schema normalization."""
     normalized = deepcopy(raw_config)
     delivery = normalized.get("delivery")
+    legacy_card = normalized.get("html_card")
+    if legacy_card is not None or (
+        isinstance(delivery, dict) and "html_card_strategy" in delivery
+    ):
+        if delivery is None:
+            delivery = normalized["delivery"] = {}
+        if not isinstance(delivery, dict):
+            raise TypeError("delivery 必须是 object")
+        strategy = delivery.get("html_card_strategy")
+        if strategy is None:
+            if legacy_card is not None and not isinstance(legacy_card, dict):
+                raise TypeError("旧 html_card 必须是 object")
+            strategy = (legacy_card or {}).get("strategy", "fallback")
+        delivery["html_card_strategy"] = HtmlCardStrategyStr(strategy).value
+        record_config_heal(
+            changes, "html_card", "migrated to delivery.html_card_strategy"
+        )
+    if "html_card" in normalized:
+        normalized.pop("html_card")
+        record_config_heal(changes, "html_card", "removed retired configuration")
     if isinstance(delivery, dict) and "auto_revoke_r18" in delivery:
         legacy_value = delivery.pop("auto_revoke_r18")
         if "auto_revoke_scope" not in delivery:
@@ -51,26 +85,6 @@ def apply_legacy_config_aliases(
                 "delivery.doujinshi_file_cleanup_delay",
                 "removed legacy key because auto_revoke_delay exists",
             )
-
-    session_configs = normalized.get("session_configs")
-    if isinstance(session_configs, list):
-        for index, item in enumerate(session_configs):
-            if not isinstance(item, dict) or "auto_revoke_r18" not in item:
-                continue
-            legacy_value = item.pop("auto_revoke_r18")
-            if "auto_revoke_scope" not in item:
-                item["auto_revoke_scope"] = _legacy_revoke_bool_to_scope(legacy_value)
-                record_config_heal(
-                    changes,
-                    f"session_configs[{index}].auto_revoke_r18",
-                    "migrated to auto_revoke_scope",
-                )
-            else:
-                record_config_heal(
-                    changes,
-                    f"session_configs[{index}].auto_revoke_r18",
-                    "removed legacy key because auto_revoke_scope exists",
-                )
 
     return normalized
 

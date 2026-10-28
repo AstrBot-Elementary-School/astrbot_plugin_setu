@@ -1,10 +1,10 @@
-# 🌸 Setu 插件（astrbot_plugin_setu）
+# Setu 插件（astrbot_plugin_setu）
 
 <div align="center">
 
 <img src="https://count.getloli.com/@astrbot_plugin_setu?name=astrbot_plugin_setu&theme=rule34&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto" alt="Moe Counter">
 
-**一个支持多平台、可自定义、带防审核机制的随机色图插件，支持多 API、随机本子 PDF/ZIP、会话级配置、LLM 工具调用。**
+**支持多图片源、随机本子 PDF/ZIP、今日运势、会话配置和 LLM 工具调用的 AstrBot 插件。**
 
 [![License: AGPL](https://img.shields.io/badge/License-AGPL-blue.svg)](https://opensource.org/licenses/agpl-3.0)
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)
@@ -17,7 +17,7 @@
 
 ---
 
-## 📸 预览
+## 预览
 
 <div align="center">
   <table>
@@ -48,22 +48,22 @@
 
 ---
 
-## ✨ 功能特性
+## 功能特性
 
-- 🎨 **多 API 支持** - Lolicon、Atri、SexNyan、自定义 API 等
-- 🧩 **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
-- 🖼️ **HTML 卡片包装** - 防止平台审核，支持自定义样式
-- 🤖 **LLM 工具调用** - 可通过大模型自动获取色图
-- 🏷️ **标签搜索** - 支持多标签、中文标签、模糊匹配
-- 🔄 **多种色图发送模式** - 直接发送、合并转发、文件封装
-- 📚 **随机本子文件** - 获取 API 返回的全部页图，可配置封装为 PDF 或 ZIP；OneBot/NapCat 普通文件消息可按统一可恢复队列延迟撤回
-- 🛡️ **防审核机制** - HTML 卡片 fallback、NapCat 流式上传、延迟撤回、Docx 封装
-- ⚡ **性能优化** - 磁盘缓存、自动补图、httpx、可观测下载重试
-- 🌐 **多平台适配** - 兼容 AstrBot 支持的所有平台
+- **多 API 支持** - Lolicon、SexNyan、自定义 API 等
+- **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
+- **HTML 卡片包装** - 普通发送失败后尝试卡片发送
+- **LLM 工具调用** - 可通过大模型自动获取色图
+- **标签搜索** - 支持多标签、中文标签、模糊匹配
+- **多种色图发送模式** - 直接发送、合并转发、文件封装
+- **随机本子文件** - 获取 API 返回的全部页图，可配置封装为 PDF 或 ZIP；OneBot/NapCat 普通文件消息可按统一可恢复队列延迟撤回
+- **防审核机制** - HTML 卡片 fallback、NapCat 流式上传、延迟撤回、Docx 封装
+- **性能优化** - 磁盘缓存、自动补图、httpx、可观测下载重试
+- **多平台适配** - 支持 AstrBot 多平台发送；合并转发、流式上传和撤回能力因平台而异
 
 ---
 
-## 📦 安装
+## 安装
 
 ### 方式一：通过 AstrBot 插件市场安装（推荐）
 
@@ -80,7 +80,7 @@
 
 ---
 
-## 📝 使用方法
+## 使用方法
 
 ### 基础命令
 
@@ -94,42 +94,22 @@
 /setu 3 白丝
 来份本子
 /随机本子
-/session_config set setu.content_mode r18
 ```
 
 - 数量范围支持中文数字
 - 标签支持空格、逗号、顿号分隔
-- `/session_config` 统一管理当前会话的覆盖配置
+- 会话覆盖在插件配置的 `session_configs` 模板列表中设置。
 - `/随机本子`（别名 `/本子`、`/doujinshi`）按 `delivery.doujinshi_send_mode` 生成并发送随机本子 PDF 或 ZIP；所有平台均直接发送文件，不再使用合并转发；OneBot 群聊可按配置延迟撤回对应的普通文件消息
 
 完整的命令说明见 [`docs/usage/commands.md`](./docs/usage/commands.md)。
 
-### 会话配置命令（管理员设置）
+### 管理配置
 
-```bash
-/session_config get
-/session_config get setu.content_mode
-/session_config set setu.content_mode r18
-/session_config clear setu.send_mode
-/session_config clear
-```
+在 AstrBot 插件配置中修改全局参数、`safety` 黑白名单和 `session_configs` 会话覆盖，保存后重载插件生效。插件不再提供 Pages 页面、配置命令或配置修改工具。
 
-### 黑白名单管理命令（管理员）
+业务操作使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`。开启 `fortune.allow_user_refresh` 后普通用户可刷新自己的运势；本群刷新仍需管理员，全局刷新仍需超级管理员。运势关闭后，相关入口和后台预生成都停用。
 
-通过插件 WebUI 的 Dashboard 访问控制标签页可集中管理黑白名单，也可使用命令动态管理：
-
-```bash
-/拉黑色图用户 @用户
-/信任色图用户 @用户
-/开启色图
-/关闭色图
-/运势用户 拉黑 @用户
-/运势开关 开
-/运势刷新
-/运势刷新 全局
-```
-
-完整命令列表见 [`docs/usage/commands.md`](./docs/usage/commands.md)。
+“图片获取”的更多配置可关闭 LLM 工具或短语触发，也可用图片、本子、运势三种短语模板替换默认说法。命令不受这两个开关影响。“发送与撤回”的更多配置可关闭随机本子，阻止下载。独立的 `r18` 标签只影响本次图片请求，不能绕过当前会话的 SFW 分级。
 
 ### LLM 工具调用
 
@@ -140,36 +120,34 @@
 
 ---
 
-## 🛠️ 配置
+## 配置
 
-在 AstrBot 管理面板中配置。完整配置参考见 [`docs/usage/configuration.md`](./docs/usage/configuration.md)。
+配置依次为图片获取、发送与撤回、今日运势、会话设置、访问控制和图片来源高级设置。低频参数需打开“显示更多配置”后设置；关闭功能会隐藏相关输入，但不清空已有值。完整配置参考见 [`docs/usage/configuration.md`](./docs/usage/configuration.md)。
 
 ### 基础配置
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `api_type` | API 类型（lolicon / atri / sexnyan / custom / all） | `lolicon` |
+| `api_type` | API 类型（lolicon / sexnyan / custom / all） | `lolicon` |
 | `send_mode` | 色图发送模式（auto / image / forward） | `auto` |
 | `doujinshi_send_mode` | 本子文件格式（pdf / archive） | `pdf` |
 | `doujinshi_max_page` | 随机本子最大页数（`0` 表示不限） | `0` |
 | `content_mode` | 内容模式（sfw / r18 / mix） | `sfw` |
 | `max_count` | 单次最大图片数（1-10） | `10` |
-| `max_replenish_rounds` | 下载暂时失败时的同 URL 确认尝试次数/补图轮次 | `3` |
-| `cache_enabled` | 是否复用本地发送缓存 | `true` |
 | `exclude_ai` | 是否排除 AI 生成图片 | `true` |
 
-### 防审核配置
+### 发送与撤回
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `html_card_strategy` | HTML 卡片策略（never / fallback / always） | `fallback` |
+| `delivery.html_card_strategy` | 图片卡片发送方式（never / fallback / always） | `fallback` |
 | `platform_transports` | 平台传输模板列表，可添加 NapCat 模板 | `[]` |
 | `auto_revoke_targets` | 自动撤回内容列表（`setu` / `fortune` / `doujinshi`） | `["doujinshi"]` |
 | `auto_revoke_scope` | 自动撤回范围（none / sfw / r18 / all） | `none` |
 | `auto_revoke_delay` | 已启用内容共用的自动清理延迟（秒，`0` 全部关闭） | `30` |
 | `r18_docx_mode` | R18 是否使用 Docx 封装 | `true` |
 
-图片下载遇到短暂网络错误时会先按 `max_replenish_rounds` 对同一 URL 做确认重试；发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时会标记为可能仍在送达，不会立刻触发降级重复发图。旧版 `auto_revoke_r18` 会在启动时迁移为 `auto_revoke_scope`，迁移后不再作为公开配置项展示。
+图片下载遇到短暂网络错误时会先按内部默认的 3 轮对同一 URL 做确认重试；发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时会标记为可能仍在送达，不会立刻触发降级重复发图。旧版 `auto_revoke_r18` 会在启动时迁移为 `auto_revoke_scope`，迁移后不再作为公开配置项展示。
 
 NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；若 AstrBot 与 NapCat 共享同一图片目录，可在 `platform_transports` 添加 NapCat 模板，将共享目录加入 `local_file_allowed_roots` 并把 `local_file_mode` 设为 `always` 或 `fallback`，让直发模式通过 raw OneBot `file://` 路径绕过 AstrBot 标准链路的 base64 转换。
 
@@ -182,36 +160,29 @@ NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；�
 | `provider_overrides` | 覆盖 provider 默认参数 |
 | `custom_api_configs` | 自定义图片 API 列表 |
 | `tag_alias_templates` | 标签别名映射 |
-| `message_overrides` | 自定义提示文案（支持占位符；内置提示默认启用，可用覆盖模板关闭或修改） |
+| `session_configs` | 按完整会话标识覆盖色图、发送与运势背景参数 |
+
+旧卡片配置会迁入 `delivery.html_card_strategy`，默认仍为 `fallback`。多图片源固定轮流使用，运势使用全局图片源，不再单独配置。
 
 ### 访问控制
 
-访问控制通过插件 WebUI 的 Dashboard 访问控制标签页管理，支持：
+在插件配置的 `safety` 模板列表中，按需添加“色图与随机本子”或“今日运势”。每条只有访问模式和 SID 黑白名单，按完整 SID 精确匹配；群聊规则对整个群生效，不再单独限制群内成员。
 
-- Setu / 运势独立的用户和群组访问模式
-- 黑白名单表格管理
-- 旧版 `safety.*` 配置自动迁移
+会话模板支持继承全局；运势模板的“单独设置背景标签”开启后，留空标签表示清除全局标签限制。详见[配置参考](./docs/usage/configuration.md#会话级覆盖)。
 
-详见 [`docs/usage/plugin-pages.md`](./docs/usage/plugin-pages.md)。
+升级时会将旧会话数据一次性迁入插件配置。旧用户／群组裸 ID 权限无法推导完整 SID，存在非空名单或限制模式时会报错，需在插件配置中明确填写新的 SID 权限规则；原运行文件保留。迁移失败会阻止初始化；迁移完成后删除模板或清空名单不会恢复旧记录。旧自定义消息和调优参数停止生效，内置提示固定启用。
 
 ---
 
-## 📚 文档
+## 文档
 
-- [`docs/usage/`](./docs/usage/README.md): 命令、配置、AI 工具、管理页说明
+- [`docs/usage/`](./docs/usage/README.md): 命令、配置、AI 工具说明
 - [`docs/project/`](./docs/project/README.md): 项目定位、架构与设计取舍
 - [`docs/dev/`](./docs/dev/README.md): 开发环境、测试、贡献与维护规则
 - [`CHANGELOG.md`](./CHANGELOG.md): 版本变更记录
 
 ---
 
-## 未来更新
-- [ ] 更好的自定义 API
-- [ ] 更细粒度的 provider 健康检查与降级策略
-- [ ] 继续补全 WebUI 配置与诊断能力
-
----
-
-## 📄 开源协议
+## 开源协议
 
  本项目基于 [AGPL](LICENSE) 协议开源。

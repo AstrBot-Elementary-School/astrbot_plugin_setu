@@ -1,6 +1,6 @@
 # LLM 工具
 
-插件注册了以下 LLM 工具，供 AstrBot 的 AI agent 调用。
+插件默认注册以下 LLM 工具，供 AstrBot 的 AI agent 调用。关闭 `setu_general.llm_tools_enabled` 后不注册这些工具，聊天命令仍可用；关闭运势时不注册运势工具。保存后重载生效。
 
 ## Setu 工具
 
@@ -8,26 +8,18 @@
 |---|---|---|---|
 | `get_setu_image` | 获取并发送随机图片 | `count: integer`（数量）, `tags: string[]`（标签） | 普通用户可用 |
 
-## 会话配置工具
-
-| 工具名 | 作用 | 参数 | 权限 |
-|---|---|---|---|
-| `get_session_config` | 查看当前会话全部配置或单个 key 的生效值 | `key?: string` | 普通用户可用 |
-| `set_session_config` | 设置当前会话一个覆盖配置 | `key: string`, `value: string` | 管理员/超级管理员 |
-| `clear_session_config` | 清除当前会话一个覆盖配置，或清空全部覆盖 | `key?: string` | 管理员/超级管理员 |
-
 ## 今日运势工具
 
 | 工具名 | 作用 | 参数 | 权限 |
 |---|---|---|---|
-| `get_today_fortune` | 获取并发送今日运势（含运势图） | 无 | 普通用户可用 |
-| `refresh_my_fortune` | 刷新"我的"今日运势 | 无 | 管理员 |
+| `get_today_fortune` | 获取并发送今日运势图，失败时返回文字运势 | 无 | 普通用户可用 |
+| `refresh_my_fortune` | 刷新"我的"今日运势 | 无 | 管理员，或开启普通用户刷新 |
 | `refresh_group_fortune` | 刷新当前群今日运势 | 无 | 管理员 |
 | `refresh_all_fortune` | 刷新全局今日运势 | 无 | 超级管理员 |
 
-## 调用建议
+## 使用边界
 
-- 需要"仅查看状态"时优先调用 `get_session_config`。
-- 需要会话级覆写时使用 `set_session_config`；希望回到全局配置时使用 `clear_session_config`。
-- 对于发送类工具，插件会直接把结果发送到当前会话，工具返回文本用于说明执行结果。
-- 权限类工具在非管理员场景会返回权限不足提示。
+- 不再提供配置读取、修改或清除工具；需要配置时，引导用户在插件配置中调整 `session_configs` 和 `safety`。
+- 图片工具受会话模板和访问控制约束，返回文本说明发送结果；今日运势工具使用与命令相同的发图流程；渲染或发送失败时返回文字运势。平台接收结果待确认时不重复发送。
+- 刷新自己须通过运势 SID 权限检查；普通用户还须开启 `fortune.allow_user_refresh`。本群刷新需要管理员，全局需要超级管理员。权限不足时直接报告，不改用其他工具绕过。
+- `get_setu_image` 可在 `tags` 中单独加入 `"r18"` 请求本次 R18 图片，其他参数不变；当前会话分级为 SFW 时会拒绝。标记不会传给图片源，也不会改变配置。

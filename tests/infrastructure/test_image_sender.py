@@ -38,21 +38,6 @@ def with_napcat_transport(config_dict: dict[str, Any], **values: Any) -> dict[st
     return updated
 
 
-def without_delivery_notices(config_dict: dict[str, Any]) -> dict[str, Any]:
-    """Disable optional post-delivery notices for transport-focused tests."""
-    updated = config_dict.copy()
-    updated["messages"] = {
-        **config_dict.get("messages", {}),
-        "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
-        "send_failed": {"enabled": False, "text": "图片发送失败，请稍后再试。"},
-        "revoke_scheduled": {
-            "enabled": False,
-            "text": "已设置自动撤回，将在 {revoke_delay} 秒后撤回。",
-        },
-    }
-    return updated
-
-
 @pytest.fixture(autouse=True)
 def reset_singletons() -> None:
     """Keep config/context singletons isolated."""
@@ -99,7 +84,7 @@ async def test_send_images_streams_on_fallback(
 
     mock_event.bot.call_action = AsyncMock(side_effect=call_action)
 
-    config = SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    config = SetuPluginConfig(**sample_config_dict)
     payload = ImagePayload(
         urls=("https://example.com/image.jpg",),
         raw_bytes=(),
@@ -114,8 +99,8 @@ async def test_send_images_streams_on_fallback(
     ]
 
     assert results == [{"send_success": True, "image_count": 1}]
-    assert len(sent_results) == 2
-    retried_chain = sent_results[-1].result_chain
+    assert len(sent_results) == 3
+    retried_chain = sent_results[1].result_chain
     assert retried_chain[0].file == "stream://image"
     assert mock_event.bot.call_action.called
 
@@ -136,7 +121,7 @@ async def test_send_images_does_not_fallback_when_send_ack_times_out(
     mock_event.bot = MagicMock()
     mock_event.bot.call_action = AsyncMock()
 
-    config = SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    config = SetuPluginConfig(**sample_config_dict)
     payload = ImagePayload(
         urls=("https://example.com/image.jpg",),
         raw_bytes=(),
@@ -151,7 +136,7 @@ async def test_send_images_does_not_fallback_when_send_ack_times_out(
     ]
 
     assert results == [{"send_success": True, "image_count": 1, "send_pending": True}]
-    assert context.send_message.await_count == 1
+    assert context.send_message.await_count == 2
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -171,7 +156,7 @@ async def test_send_images_treats_napcat_none_ack_as_pending(
     mock_event.bot = MagicMock()
     mock_event.bot.call_action = AsyncMock()
 
-    config = SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    config = SetuPluginConfig(**sample_config_dict)
     payload = ImagePayload(
         urls=("https://example.com/image.jpg",),
         raw_bytes=(),
@@ -186,7 +171,7 @@ async def test_send_images_treats_napcat_none_ack_as_pending(
     ]
 
     assert results == [{"send_success": True, "image_count": 1, "send_pending": True}]
-    assert context.send_message.await_count == 1
+    assert context.send_message.await_count == 2
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -217,15 +202,15 @@ async def test_send_images_reports_partial_batch_failure(
     mock_event.bot = MagicMock()
     mock_event.bot.call_action = AsyncMock()
 
-    config_dict = without_delivery_notices(sample_config_dict)
+    config_dict = sample_config_dict
     config_dict["delivery"] = {
         **sample_config_dict["delivery"],
         "send_mode": "image",
         "napcat_stream_mode": "disabled",
     }
-    config_dict["html_card"] = {
-        **sample_config_dict["html_card"],
-        "strategy": "never",
+    config_dict["delivery"] = {
+        **config_dict["delivery"],
+        "html_card_strategy": "never",
     }
     config = SetuPluginConfig(**config_dict)
     payload = ImagePayload(
@@ -241,7 +226,7 @@ async def test_send_images_reports_partial_batch_failure(
         item async for item in ImageSender(config).send_images(payload, mock_event)
     ]
 
-    assert results == [
+    assert results[-1:] == [
         {"send_success": False, "image_count": 9, "partial_failure": True}
     ]
     assert context.send_message.await_count == 2
@@ -266,7 +251,7 @@ async def test_send_images_does_not_fallback_when_forward_ack_times_out(
     mock_event.bot = MagicMock()
     mock_event.bot.call_action = AsyncMock()
 
-    config_dict = without_delivery_notices(sample_config_dict)
+    config_dict = sample_config_dict
     config = SetuPluginConfig(**config_dict)
     payload = ImagePayload(
         urls=("https://example.com/a.jpg", "https://example.com/b.jpg"),
@@ -282,7 +267,7 @@ async def test_send_images_does_not_fallback_when_forward_ack_times_out(
     ]
 
     assert results == [{"send_success": True, "image_count": 2, "send_pending": True}]
-    assert context.send_message.await_count == 1
+    assert context.send_message.await_count == 2
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -303,9 +288,7 @@ async def test_send_images_materializes_local_files_before_direct_send(
     context.send_message = AsyncMock(side_effect=send_message)
     set_plugin_context(context)
 
-    config_dict = with_napcat_transport(
-        without_delivery_notices(sample_config_dict), stream_mode="disabled"
-    )
+    config_dict = with_napcat_transport(sample_config_dict, stream_mode="disabled")
     config = SetuPluginConfig(**config_dict)
     payload = ImagePayload(
         urls=(),
@@ -321,7 +304,7 @@ async def test_send_images_materializes_local_files_before_direct_send(
     ]
 
     assert results == [{"send_success": True, "image_count": 1}]
-    image_comp = sent_results[-1].result_chain[0]
+    image_comp = sent_results[0].result_chain[0]
     assert isinstance(image_comp, Comp.Image)
     assert isinstance(image_comp.file, str)
     assert image_comp.file.startswith("base64://")
@@ -346,7 +329,7 @@ async def test_send_images_passthroughs_local_file_when_always_enabled(
     mock_event.bot.send_group_msg = AsyncMock(return_value={"message_id": "ok"})
 
     config_dict = with_napcat_transport(
-        without_delivery_notices(sample_config_dict),
+        sample_config_dict,
         local_file_mode="always",
         local_file_allowed_roots=[str(tmp_path / "shared")],
     )
@@ -369,7 +352,7 @@ async def test_send_images_passthroughs_local_file_when_always_enabled(
         group_id=123456,
         message=[{"type": "image", "data": {"file": image_path.resolve().as_uri()}}],
     )
-    assert context.send_message.await_count == 0
+    assert context.send_message.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -398,7 +381,7 @@ async def test_send_images_local_file_fallback_runs_before_stream(
     mock_event.bot.call_action = AsyncMock()
 
     config_dict = with_napcat_transport(
-        without_delivery_notices(sample_config_dict),
+        sample_config_dict,
         local_file_mode="fallback",
         local_file_allowed_roots=[str(tmp_path / "shared")],
         stream_mode="fallback",
@@ -420,11 +403,11 @@ async def test_send_images_local_file_fallback_runs_before_stream(
     assert results == [{"send_success": True, "image_count": 1}]
     mock_event.bot.send_group_msg.assert_awaited_once()
     mock_event.bot.call_action.assert_not_called()
-    assert len(sent_results) == 1
+    assert len(sent_results) == 2
 
 
 @pytest.mark.asyncio
-async def test_send_images_passes_configured_stream_chunk_size(
+async def test_send_images_uses_fixed_stream_chunk_size(
     tmp_path: Path, mock_event, sample_config_dict, monkeypatch
 ) -> None:
     image_path = tmp_path / "image.jpg"
@@ -470,7 +453,7 @@ async def test_send_images_passes_configured_stream_chunk_size(
     ]
 
     assert results == [{"send_success": True, "image_count": 1}]
-    assert captured["chunk_size"] == 512 * 1024
+    assert captured["chunk_size"] == 64 * 1024
 
 
 @pytest.mark.asyncio
@@ -564,12 +547,12 @@ async def test_html_card_only_preserves_pending_send_status(
             return b"html-card"
 
     config_dict = sample_config_dict.copy()
-    config_dict["html_card"] = {
-        **sample_config_dict["html_card"],
-        "strategy": "always",
+    config_dict["delivery"] = {
+        **config_dict["delivery"],
+        "html_card_strategy": "always",
     }
     config_dict["messages"] = {
-        **sample_config_dict["messages"],
+        **sample_config_dict.get("messages", {}),
         "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
     }
     config = SetuPluginConfig(**config_dict)
@@ -587,26 +570,6 @@ async def test_html_card_only_preserves_pending_send_status(
     results = [item async for item in sender.send_images(payload, mock_event)]
 
     assert results == [{"send_success": True, "image_count": 1, "send_pending": True}]
-
-
-@pytest.mark.asyncio
-async def test_direct_send_strategy_passthroughs_onebot_stream_refs(mock_event) -> None:
-    context = MagicMock()
-    strategy = DirectSendStrategy(context)
-
-    mock_event.platform.name = "aiocqhttp"
-    mock_event.get_group_id.return_value = "123456"
-    mock_event.get_sender_id.return_value = "654321"
-    mock_event.bot = MagicMock()
-    mock_event.bot.send_group_msg = AsyncMock(return_value={"message_id": "ok"})
-
-    success = await strategy.send(mock_event, [Comp.Image(file="stream://image")])
-
-    assert success is True
-    mock_event.bot.send_group_msg.assert_awaited_once_with(
-        group_id=123456,
-        message=[{"type": "image", "data": {"file": "stream://image"}}],
-    )
 
 
 @pytest.mark.asyncio
@@ -863,41 +826,7 @@ async def test_recoverable_revoke_scheduler_calls_delete_msg(
 
 
 @pytest.mark.asyncio
-async def test_send_images_respects_found_message_toggle(
-    tmp_path: Path, mock_event, sample_config_dict
-) -> None:
-    image_path = tmp_path / "image.jpg"
-    image_path.write_bytes(b"image-data")
-
-    context = MagicMock()
-    context.send_message = AsyncMock(return_value={"message_id": "ok"})
-    set_plugin_context(context)
-
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict["messages"],
-        "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
-    }
-    config = SetuPluginConfig(**config_dict)
-    payload = ImagePayload(
-        urls=("https://example.com/image.jpg",),
-        raw_bytes=(),
-        file_paths=(image_path,),
-        items=(image_path,),
-        r18=False,
-        tags=(),
-    )
-
-    results = [
-        item async for item in ImageSender(config).send_images(payload, mock_event)
-    ]
-
-    assert results == [{"send_success": True, "image_count": 1}]
-    assert context.send_message.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_send_images_respects_send_failed_toggle(
+async def test_send_images_ignores_legacy_send_failed_toggle(
     tmp_path: Path, mock_event, sample_config_dict
 ) -> None:
     image_path = tmp_path / "image.jpg"
@@ -928,14 +857,15 @@ async def test_send_images_respects_send_failed_toggle(
         item async for item in ImageSender(config).send_images(payload, mock_event)
     ]
 
-    assert results == []
+    assert len(results) == 1
+    mock_event.plain_result.assert_called_with("图片发送失败，请稍后再试。")
 
 
 @pytest.mark.asyncio
 async def test_r18_docx_missing_service_never_sends_images(
     mock_event, sample_config_dict
 ):
-    config = SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    config = SetuPluginConfig(**sample_config_dict)
     sender = ImageSender(config)
     sender._build_options = AsyncMock(
         return_value=SendOptions(
@@ -978,7 +908,7 @@ async def test_r18_docx_delivery_terminal_states(
     if outcome == "generation_failed":
         service.create_docx_with_images = MagicMock(side_effect=OSError("disk full"))
     sender = ImageSender(
-        SetuPluginConfig(**without_delivery_notices(sample_config_dict)),
+        SetuPluginConfig(**sample_config_dict),
         docx_service=service,
     )
     sender._build_options = AsyncMock(
@@ -1045,9 +975,7 @@ async def test_non_docx_requests_keep_image_delivery(
     context = MagicMock()
     context.send_message = AsyncMock(return_value={"message_id": "123"})
     set_plugin_context(context)
-    sender = ImageSender(
-        SetuPluginConfig(**without_delivery_notices(sample_config_dict))
-    )
+    sender = ImageSender(SetuPluginConfig(**sample_config_dict))
     sender._build_options = AsyncMock(
         return_value=SendOptions(
             send_mode="image",
@@ -1063,5 +991,41 @@ async def test_non_docx_requests_keep_image_delivery(
     results = [item async for item in sender.send_images(payload, mock_event)]
     assert results == [{"send_success": True, "image_count": 1}]
     assert isinstance(
-        context.send_message.call_args.args[1].result_chain[0], Comp.Image
+        context.send_message.call_args_list[0].args[1].result_chain[0], Comp.Image
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("targets,expected", [(["fortune"], True), (["setu"], False)])
+async def test_fortune_transport_uses_its_own_revoke_policy(
+    mock_event, targets, expected
+):
+    config = SetuPluginConfig(
+        delivery={
+            "send_mode": "forward",
+            "r18_docx_mode": True,
+            "auto_revoke_targets": targets,
+            "auto_revoke_scope": "all",
+            "compress_enabled": True,
+            "compress_max_mb": 9,
+            "platform_transports": [
+                {
+                    "__template_key": "napcat",
+                    "stream_mode": "always",
+                    "local_file_mode": "fallback",
+                    "local_file_allowed_roots": ["/shared"],
+                }
+            ],
+        }
+    )
+    sender = ImageSender(config, content_type="fortune")
+    options = await sender._build_options(mock_event, is_r18=True)
+    assert options.send_mode == "image"
+    assert options.r18_docx_mode is False
+    assert options.auto_revoke is expected
+    assert options.compress_enabled and options.compress_max_mb == 9
+    assert options.napcat_stream_mode == "always"
+    assert options.napcat_local_file_allowed_roots == ("/shared",)
+    sender._send_plain_text = AsyncMock()
+    await sender._send_post_delivery_messages(mock_event, 1, options, False, 1)
+    sender._send_plain_text.assert_not_awaited()

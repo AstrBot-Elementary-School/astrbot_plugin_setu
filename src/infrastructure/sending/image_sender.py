@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import unquote, urlparse
 
 import astrbot.api.message_components as Comp
@@ -19,7 +19,6 @@ from ...shared.config import should_auto_revoke
 from ...shared.send_cache import get_send_cache, schedule_send_cache_cleanup
 from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
-from ..persistence import get_session_config_repo
 from .docx_service import R18DocxService
 from .dto import SendAttemptResult, SendOptions
 from .image_compressor import compress_image
@@ -47,8 +46,10 @@ class ImageSender:
         log: Any = None,
         *,
         docx_service: R18DocxService | None = None,
+        content_type: Literal["setu", "fortune"] = "setu",
     ) -> None:
         self._docx_service = docx_service
+        self._content_type = content_type
         self._user_config = config
         self._log = log or logger
         self._html_renderer: Any = None
@@ -83,40 +84,26 @@ class ImageSender:
                 napcat_local_file_allowed_roots=(),
             )
 
-        send_mode = config.send_mode
-        auto_revoke_scope = str(getattr(config, "auto_revoke_scope", "none") or "none")
-        r18_docx_mode = config.r18_docx_mode if is_r18 else False
-        session_label = "unknown"
-
-        try:
-            identity = get_event_session_identity(event)
-            session_label = identity.session_id
-            service = SessionConfigService(get_session_config_repo())
-            snapshot = await service.get_snapshot(
-                identity.session_id,
-                identity.session_type,
-                identity.display_name,
-            )
-            send_mode = str(snapshot.effective["setu.send_mode"])
-            auto_revoke_scope = str(
-                snapshot.effective["setu.auto_revoke_scope"] or "none"
-            )
-            if is_r18:
-                r18_docx_mode = bool(snapshot.effective["setu.r18_docx"])
-        except Exception as exc:
-            self._log.debug(
-                "[send] failed to apply session overrides: session=%s, error=%s",
-                session_label,
-                exc,
-            )
+        identity = get_event_session_identity(event)
+        settings = SessionConfigService(config).resolve(identity.session_id)
+        send_mode = settings.send_mode
+        auto_revoke_scope = settings.auto_revoke_scope
+        r18_docx_mode = settings.r18_docx_mode if is_r18 else False
 
         html_card_strategy = config.html_card_strategy
         revoke_delay = config.auto_revoke_delay
+        is_fortune = self._content_type == "fortune"
+        if is_fortune:
+            send_mode = "image"
+            r18_docx_mode = False
+            auto_revoke_scope = "none"
         return SendOptions(
             send_mode=send_mode,
             use_html_card=html_card_strategy != "never",
             auto_revoke=(
-                config.auto_revoke_setu_enabled
+                config.auto_revoke_fortune_enabled and revoke_delay > 0
+                if is_fortune
+                else config.auto_revoke_setu_enabled
                 and revoke_delay > 0
                 and should_auto_revoke(auto_revoke_scope, is_r18)
             ),
@@ -879,6 +866,8 @@ class ImageSender:
         scheduled_revoke_count: int,
     ) -> None:
         """Send optional plain-text notices after at least one payload was accepted."""
+        if self._content_type == "fortune":
+            return
         found_msg = self._format_found_message(
             count,
             scope=options.auto_revoke_scope,
@@ -908,8 +897,6 @@ class ImageSender:
     ) -> str | None:
         """Format found message with optional revoke delay."""
         config = self._config
-        if config and not getattr(config, "msg_found_enabled", True):
-            return None
         if config and hasattr(config, "format_found_message"):
             return config.format_found_message(count, revoke_delay, scope, r18)
         return self._resolve_message(
