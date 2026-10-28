@@ -66,7 +66,7 @@ def test_auto_revoke_scope_validation(sample_config_dict) -> None:
         SetuPluginConfig(**invalid)
 
 
-def test_only_failure_messages_are_builtin() -> None:
+def test_builtin_success_messages_are_limited_to_refresh_confirmation() -> None:
     for key in (
         "fetching",
         "found",
@@ -77,6 +77,10 @@ def test_only_failure_messages_are_builtin() -> None:
         "fortune_refresh_all_done",
     ):
         assert MessagesConfig.resolve_message(key) is None
+    assert (
+        MessagesConfig.resolve_message("fortune_refresh_done")
+        == "今日运势已刷新，发送 /今日运势 查看。"
+    )
     assert (
         MessagesConfig.resolve_message("invalid_count", min_count=1, max_count=7)
         == "数量解析失败，图片数量必须在1-7之间"

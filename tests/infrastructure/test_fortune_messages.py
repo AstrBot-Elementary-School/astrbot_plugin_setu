@@ -77,3 +77,28 @@ async def test_fortune_delivery_and_text_fallback(
         assert "generic image failure" not in text
     if entry == "command":
         mock_event.stop_event.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_refresh_command_reports_confirmation_without_fortune(
+    monkeypatch, mock_event
+) -> None:
+    config = SetuPluginConfig()
+    record = SimpleNamespace(title="大吉", description="不该出现在刷新提示")
+    service = SimpleNamespace(refresh_fortune=AsyncMock(return_value=record))
+    monkeypatch.setattr(fortune_cmd, "get_config", lambda: config)
+    monkeypatch.setattr(fortune_cmd, "get_fortune_repo", lambda: object())
+    monkeypatch.setattr(fortune_cmd, "FortuneService", lambda **kwargs: service)
+    handler = FortuneCommandHandler()
+    handler._check_self_refresh = AsyncMock(return_value=(True, ""))
+    handler._build_fortune_request = MagicMock(return_value=object())
+    mock_event.plain_result.side_effect = lambda text: text
+
+    text = "".join(
+        [value async for value in handler.refresh_fortune_command(mock_event)]
+    )
+
+    service.refresh_fortune.assert_awaited_once()
+    assert "已刷新" in text
+    assert record.title not in text
+    assert record.description not in text

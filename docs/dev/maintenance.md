@@ -10,7 +10,7 @@
 
 ## 分层与提示
 
-`main.py` 连接生命周期、注册和路由，业务规则由 application/domain 负责，平台适配位于 infrastructure。用户可见的失败与拒绝文案集中在 `MessagesConfig` / `resolve_message()`，发送成功不追加提示；图片与本子的标签共用 `application/setu/tag_resolution.py`。
+`main.py` 连接生命周期、注册和路由，业务规则由 application/domain 负责，平台适配位于 infrastructure。用户可见的失败与拒绝文案集中在 `MessagesConfig` / `resolve_message()`，发送成功不追加提示（`/刷新运势` 刷新自己的运势时返回固定确认）；图片与本子的标签共用 `application/setu/tag_resolution.py`。
 
 ## 本地路径
 
@@ -25,7 +25,7 @@
   - `_conf_schema.json`
   - `src/shared/config/models.py`
   - 受影响的核心回归测试（保留范围见 [测试说明](./testing.md#长期保留哪些测试)）
-- 失败与拒绝文案位于 `src/shared/config/messages.py`；新增 key 时同步占位符文档，涉及已知故障或兼容边界时补回归测试，不恢复用户自定义消息入口。发送成功路径保持静默。
+- 失败与拒绝文案位于 `src/shared/config/messages.py`；新增 key 时同步占位符文档，涉及已知故障或兼容边界时补回归测试，不恢复用户自定义消息入口。除 `/刷新运势` 刷新自己时的固定确认外，发送成功路径保持静默。
 - sender 和 provider 参数的行为见[配置参考](../usage/configuration.md)及对应源码。
 
 - 配置文案不用 Unicode 表情或 `obvious_hint`；标题写用途，提示只写条件、格式和必要限制。

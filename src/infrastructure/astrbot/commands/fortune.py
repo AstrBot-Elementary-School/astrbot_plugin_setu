@@ -161,7 +161,7 @@ class FortuneCommandHandler:
     async def refresh_fortune_command(
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
-        """Handle /刷新今日运势 command."""
+        """Handle /刷新运势 command."""
         if unavailable := self._unavailable(tool=False):
             yield event.plain_result(unavailable)
             return
@@ -183,8 +183,8 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            result = await service.refresh_fortune(request)
-            yield event.plain_result(self._format_fortune(result))
+            await service.refresh_fortune(request)
+            yield event.plain_result(self._message("fortune_refresh_done"))
         except Exception as e:
             text = self._message("fortune_refresh_failed", error=e)
             if result := self._plain(event, text):
