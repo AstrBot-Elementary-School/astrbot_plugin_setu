@@ -38,7 +38,7 @@ class R18DocxService:
                     stream = BytesIO(data)
                     if image.format not in {"JPEG", "PNG"}:
                         stream = BytesIO()
-                        image.convert("RGB").save(stream, format="PNG")
+                        image.convert("RGBA").save(stream, format="PNG")
                         stream.seek(0)
                     scale = min(width / image.width, height / image.height)
                     if index:

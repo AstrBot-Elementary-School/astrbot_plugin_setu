@@ -14,25 +14,35 @@ from docx import Document
 from PIL import Image, UnidentifiedImageError
 
 
-def image_bytes(format: str, size=(80, 40)) -> bytes:
+def image_bytes(format: str, size=(80, 40), color="blue") -> bytes:
     stream = BytesIO()
-    Image.new("RGB", size, "blue").save(stream, format=format)
+    Image.new(
+        "RGBA" if isinstance(color, tuple) and len(color) == 4 else "RGB", size, color
+    ).save(stream, format=format)
     return stream.getvalue()
 
 
 def test_docx_contains_all_formats_in_order_and_fits_page(tmp_path):
-    path = R18DocxService(tmp_path).create_docx_with_images(
-        [
-            image_bytes("JPEG"),
-            image_bytes("PNG", (40, 80)),
-            image_bytes("WEBP", (100, 20)),
-        ],
-        ["test"],
-    )
+    images = [
+        image_bytes("JPEG", color="red"),
+        image_bytes("PNG", (40, 80), color="green"),
+        image_bytes("WEBP", (100, 20)),
+    ]
+    path = R18DocxService(tmp_path).create_docx_with_images(images, ["test"])
     doc = Document(path)
     shapes = list(doc.inline_shapes)
     assert len(shapes) == 3
     assert [round(shape.width / shape.height, 1) for shape in shapes] == [2, 0.5, 5]
+    pixels = []
+    for shape in shapes:
+        rid = shape._inline.graphic.graphicData.pic.blipFill.blip.embed
+        with Image.open(BytesIO(doc.part.related_parts[rid].blob)) as embedded:
+            pixels.append(embedded.convert("RGB").getpixel((0, 0)))
+    expected = []
+    for data in images:
+        with Image.open(BytesIO(data)) as original:
+            expected.append(original.convert("RGB").getpixel((0, 0)))
+    assert pixels == expected
     section = doc.sections[0]
     assert all(
         shape.width <= section.page_width - section.left_margin - section.right_margin
@@ -93,3 +103,14 @@ async def test_docx_cleanup_with_image_cache_disabled(tmp_path):
         os.utime(path, (1, 1))
     assert await cache.cleanup() == 2
     assert all(not path.exists() for path in paths)
+
+
+def test_docx_preserves_webp_transparency(tmp_path):
+    path = R18DocxService(tmp_path).create_docx_with_images(
+        [image_bytes("WEBP", color=(255, 0, 0, 64))], []
+    )
+    doc = Document(path)
+    shape = doc.inline_shapes[0]
+    rid = shape._inline.graphic.graphicData.pic.blipFill.blip.embed
+    with Image.open(BytesIO(doc.part.related_parts[rid].blob)) as embedded:
+        assert embedded.convert("RGBA").getpixel((0, 0))[3] == 64

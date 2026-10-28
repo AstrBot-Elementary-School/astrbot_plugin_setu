@@ -482,16 +482,15 @@ class SetuCommandHandler:
 # ==================== LLM Tools Registration ====================
 
 
-def register_llm_tools() -> None:
+def register_llm_tools(handler: SetuCommandHandler) -> None:
     """Register Setu LLM tools."""
     config = get_config()
     if config is None or not config.setu_general.llm_tools_enabled:
         return
-    _handler = SetuCommandHandler()
     tools = [
         (
             "get_setu_image",
-            _handler._llm_get_setu_handler,
+            handler._llm_get_setu_handler,
             [
                 {
                     "name": "count",

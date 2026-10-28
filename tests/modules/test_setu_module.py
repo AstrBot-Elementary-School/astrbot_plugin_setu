@@ -41,7 +41,12 @@ async def test_llm_reports_docx_failure(
         yield failure
 
     monkeypatch.setattr(ImageSender, "send_images", failed_send)
-    assert await handler._llm_get_setu_handler(mock_event) == "send_failed"
+    tools = MagicMock()
+    monkeypatch.setattr(setu, "llm_tools", tools)
+    setu.register_llm_tools(handler)
+    registered = tools.add_func.call_args.kwargs["handler"]
+    assert registered.__self__ is handler
+    assert await registered(mock_event) == "send_failed"
     context.send_message.assert_awaited_once_with(
         mock_event.unified_msg_origin, failure
     )
