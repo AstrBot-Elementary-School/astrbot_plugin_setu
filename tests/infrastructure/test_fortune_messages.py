@@ -75,3 +75,5 @@ async def test_fortune_delivery_and_text_fallback(
     else:
         assert "运势图未能发送" in text and "小吉" in text
         assert "generic image failure" not in text
+    if entry == "command":
+        mock_event.stop_event.assert_called()

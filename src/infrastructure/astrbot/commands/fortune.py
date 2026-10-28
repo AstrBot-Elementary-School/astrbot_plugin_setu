@@ -51,6 +51,14 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /今日运势 command (/今日运势, /jrys)."""
+        async for result in self._fortune_command(event):
+            yield result
+        # 图片经 context 直发，不会记录发送操作；终止事件以免默认 LLM 追加回复。
+        event.stop_event()
+
+    async def _fortune_command(
+        self, event: AstrMessageEvent
+    ) -> AsyncGenerator[Any, None]:
         if unavailable := self._unavailable(tool=False):
             yield event.plain_result(unavailable)
             return
@@ -216,6 +224,7 @@ class FortuneCommandHandler:
             text = self._message("fortune_refresh_group_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+        event.stop_event()
 
     async def refresh_all_fortune_command(
         self, event: AstrMessageEvent
@@ -245,6 +254,7 @@ class FortuneCommandHandler:
             text = self._message("fortune_refresh_all_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+        event.stop_event()
 
     # ==================== LLM Tool Handlers ====================
 

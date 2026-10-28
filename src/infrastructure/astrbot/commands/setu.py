@@ -140,6 +140,7 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
@@ -147,6 +148,8 @@ class SetuCommandHandler:
                 event, count, tags, natural=natural
             ):
                 yield result
+            # 媒体经 context 或原始 action 发送，不会记录发送操作，需显式终止以免默认 LLM 再回复。
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 
@@ -157,11 +160,13 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
             async for result in self._handle_random_doujinshi_internal(event, tags):
                 yield result
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 

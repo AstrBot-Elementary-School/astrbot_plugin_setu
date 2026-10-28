@@ -27,6 +27,8 @@ class SendResult:
     """Result of a send filter attempt."""
 
     success: bool
+    # 保留字段供外部调用方兼容；插件内部不再读取。
+    message: str | None = None
     images_sent: int = 0
     error: str | None = None
 
