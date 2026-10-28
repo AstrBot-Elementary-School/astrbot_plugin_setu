@@ -87,8 +87,12 @@ async def test_fetch_random_pdf_downloads_all_api_pages_in_order(
                 },
             )
         if request.url == httpx.URL("https://example.com/1.jpg"):
+            assert request.headers["sec-fetch-dest"] == "empty"
+            assert "astrbot-plugin-setu" in request.headers["user-agent"]
             return httpx.Response(200, content=first_page)
         if request.url == httpx.URL("https://example.com/2.jpg"):
+            assert request.headers["sec-fetch-dest"] == "empty"
+            assert "astrbot-plugin-setu" in request.headers["user-agent"]
             return httpx.Response(200, content=second_page)
         raise AssertionError(f"未预期的请求：{request.url}")
 
@@ -209,8 +213,12 @@ async def test_fetch_random_file_archive_contains_pages_in_order(
                 },
             )
         if request.url == httpx.URL("https://example.com/1.jpg"):
+            assert request.headers["sec-fetch-dest"] == "empty"
+            assert "astrbot-plugin-setu" in request.headers["user-agent"]
             return httpx.Response(200, content=first_page)
         if request.url == httpx.URL("https://example.com/2.png"):
+            assert request.headers["sec-fetch-dest"] == "empty"
+            assert "astrbot-plugin-setu" in request.headers["user-agent"]
             return httpx.Response(200, content=second_page)
         raise AssertionError(f"未预期的请求：{request.url}")
 
