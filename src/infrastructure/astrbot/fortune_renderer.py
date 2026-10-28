@@ -8,6 +8,7 @@ from typing import Any
 
 from astrbot.api import logger
 from astrbot.core import html_renderer
+from jinja2 import Template
 
 
 class FortuneRenderer:
@@ -68,47 +69,30 @@ class FortuneRenderer:
             return """<!DOCTYPE html>
 <html><body style="width:480px;padding:20px;">
 <div style="background:#f0f0f0;border-radius:10px;padding:20px;">
-<h2>{{ username }} 的今日运势 ({{ date_str }})</h2>
-<p>运势: {{ title }}</p>
-<p>星级: {{ stars_display }}</p>
-<p>{{ description }}</p>
+<h2>{{ username | e }} 的今日运势 ({{ date_str | e }})</h2>
+<p>运势: {{ title | e }}</p>
+<p>星级: {{ stars_display | safe }}</p>
+<p>{{ description | e }}</p>
 </div></body></html>"""
 
     @staticmethod
     def _format_stars(count: int, max_count: int = 7) -> str:
         stars_html = []
         for _ in range(count):
-            stars_html.append('<span class="star">★</span>')
+            stars_html.append('<span class="star-glyph">✦</span>')
         for _ in range(max_count - count):
-            stars_html.append('<span class="star empty">★</span>')
+            stars_html.append('<span class="star-glyph empty">✦</span>')
         return "".join(stars_html)
 
     def render(self, fortune: dict[str, Any], image_base64: str | None = None) -> str:
         template = self._get_template()
-        username = self._truncate_username(fortune.get("username", "用户"))
-        data = {
-            "fonts_css": self._get_embedded_fonts_css(),
-            "username": username,
-            "date_str": fortune.get("date_str", ""),
-            "title": fortune.get("title", "未知"),
-            "stars_display": self._format_stars(
-                fortune.get("star_count", 3), fortune.get("max_stars", 7)
-            ),
-            "description": fortune.get("description", ""),
-            "extra_message": fortune.get("extra_message", ""),
-            "theme_color": fortune.get("theme_color", "theme-gray"),
-            "image_base64": image_base64 or "",
-        }
-
-        html = template
-        for key, value in data.items():
-            html = html.replace(f"{{{{ {key} }}}}", str(value))
-        return html
+        data = self.build_template_data(fortune, image_base64=image_base64)
+        return Template(template, autoescape=True).render(**data)
 
     def build_template_data(
         self, fortune: dict[str, Any], image_base64: str | None = None
     ) -> dict[str, Any]:
-        """Build Jinja template data for legacy fortune template."""
+        """Build Jinja template data for fortune cards."""
         username = self._truncate_username(fortune.get("username", "用户"))
         return {
             "fonts_css": self._get_embedded_fonts_css(),
@@ -147,6 +131,6 @@ class FortuneRenderer:
                         return None
                     return path.read_bytes()
             return None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - Keep text fallback for t2i failures.
             logger.exception("[fortune] Failed to render image: %s", exc)
             return None
