@@ -79,9 +79,9 @@ class FortuneRenderer:
     def _format_stars(count: int, max_count: int = 7) -> str:
         stars_html = []
         for _ in range(count):
-            stars_html.append('<span class="star-glyph">✦</span>')
+            stars_html.append('<span class="star">★</span>')
         for _ in range(max_count - count):
-            stars_html.append('<span class="star-glyph empty">✦</span>')
+            stars_html.append('<span class="star empty">★</span>')
         return "".join(stars_html)
 
     def render(self, fortune: dict[str, Any], image_base64: str | None = None) -> str:

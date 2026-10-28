@@ -24,4 +24,4 @@ def test_user_text_is_escaped_in_local_and_t2i_templates():
         assert "&lt;img src=x&gt;" in html
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
         assert "&lt;iframe src=x&gt;&lt;/iframe&gt;" in html
-        assert html.count('<span class="star-glyph">') == 3
+        assert html.count('<span class="star">') == 3

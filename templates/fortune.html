@@ -2,633 +2,218 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=2.0">
-  <title>Kivotos Oracle Shard</title>
+   <meta name="viewport" content="width=device-width, initial-scale=4.0">
+  <title>Fortune Card</title>
   <style>
 {{ fonts_css | safe }}
 
-
     :root {
-      --font-display: 'Syne', 'Outfit', 'NotoSansSC-Bold', sans-serif;
-      --font-kanji: 'NotoSansSC-Bold', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-      --font-code: 'Chakra Petch', 'Outfit', monospace, sans-serif;
-
-      --card-w: 840px;
-      --card-bg: #050814;
-      --accent: #00f2fe;
-      --accent-alt: #9b51e0;
-      --accent-gold: #fbbf24;
-      --foil-gradient: linear-gradient(135deg, #00f2fe 0%, #a855f7 35%, #ec4899 70%, #ffd700 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #cffafe 35%, #00f2fe 70%, #7c3aed 100%);
-      --seal-bg: linear-gradient(135deg, #ff0055 0%, #ff5e3a 100%);
-      --text-main: #ffffff;
-      --text-sub: #94a3b8;
-      --glow: rgba(0, 242, 254, 0.4);
-      --glass-bg: rgba(7, 12, 28, 0.78);
-      --glass-border: rgba(0, 242, 254, 0.3);
+      --primary-color: #d15a7c;
+      --header-bg: #ffdae5;
+      --bg-color: #f0f8ff;
     }
 
-    /* THEME PALETTES */
-    .theme-aether, .theme-blue {
-      --card-bg: #040816;
-      --accent: #00f2fe;
-      --accent-alt: #9b51e0;
-      --foil-gradient: linear-gradient(135deg, #00f2fe 0%, #6366f1 35%, #a855f7 70%, #00f2fe 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #cffafe 40%, #00f2fe 75%, #9333ea 100%);
-      --glow: rgba(0, 242, 254, 0.45);
-      --glass-bg: rgba(6, 12, 30, 0.82);
-      --glass-border: rgba(0, 242, 254, 0.35);
-    }
-
-    .theme-sanctuary, .theme-gold {
-      --card-bg: #120e05;
-      --accent: #fbbf24;
-      --accent-alt: #f43f5e;
-      --foil-gradient: linear-gradient(135deg, #fbbf24 0%, #f43f5e 35%, #fb7185 70%, #fde047 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #fef08a 40%, #f59e0b 75%, #e11d48 100%);
-      --glow: rgba(251, 191, 36, 0.45);
-      --glass-bg: rgba(24, 18, 8, 0.84);
-      --glass-border: rgba(251, 191, 36, 0.4);
-    }
-
-    .theme-abyss, .theme-red {
-      --card-bg: #120307;
-      --accent: #ff2d55;
-      --accent-alt: #ff8a00;
-      --foil-gradient: linear-gradient(135deg, #ff2d55 0%, #ff8a00 35%, #ff0055 70%, #ffc83d 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #fecdd3 40%, #ff2d55 75%, #ea580c 100%);
-      --glow: rgba(255, 45, 85, 0.45);
-      --glass-bg: rgba(26, 6, 12, 0.84);
-      --glass-border: rgba(255, 45, 85, 0.4);
-    }
-
-    .theme-singularity, .theme-purple {
-      --card-bg: #0a0518;
-      --accent: #a855f7;
-      --accent-alt: #00ffcc;
-      --foil-gradient: linear-gradient(135deg, #a855f7 0%, #00ffcc 35%, #ec4899 70%, #a855f7 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #e9d5ff 40%, #a855f7 75%, #00ffcc 100%);
-      --glow: rgba(168, 85, 247, 0.45);
-      --glass-bg: rgba(16, 8, 36, 0.84);
-      --glass-border: rgba(168, 85, 247, 0.4);
-    }
-
-    .theme-green {
-      --card-bg: #031208;
-      --accent: #22c55e;
-      --accent-alt: #00f2fe;
-      --foil-gradient: linear-gradient(135deg, #22c55e 0%, #00f2fe 35%, #86efac 70%, #00f2fe 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #bbf7d0 40%, #22c55e 75%, #00f2fe 100%);
-      --glow: rgba(34, 197, 94, 0.45);
-      --glass-bg: rgba(6, 24, 14, 0.84);
-      --glass-border: rgba(34, 197, 94, 0.4);
-    }
-
-    .theme-gray {
-      --card-bg: #0d1117;
-      --accent: #e2e8f0;
-      --accent-alt: #64748b;
-      --foil-gradient: linear-gradient(135deg, #ffffff 0%, #94a3b8 50%, #475569 100%);
-      --kanji-gradient: linear-gradient(180deg, #ffffff 0%, #f1f5f9 45%, #94a3b8 100%);
-      --glow: rgba(226, 232, 240, 0.25);
-      --glass-bg: rgba(18, 24, 34, 0.84);
-      --glass-border: rgba(226, 232, 240, 0.3);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    .theme-red { --primary-color: #e74c3c; --header-bg: #ffcccc; --bg-color: #fff5f5; }
+    .theme-gold { --primary-color: #f39c12; --header-bg: #ffeaa7; --bg-color: #fffbf0; }
+    .theme-blue { --primary-color: #3498db; --header-bg: #bae7ff; --bg-color: #f0f9ff; }
+    .theme-purple { --primary-color: #9b59b6; --header-bg: #d9c3ff; --bg-color: #faf5ff; }
+    .theme-green { --primary-color: #27ae60; --header-bg: #b3ffe6; --bg-color: #f0fff5; }
+    .theme-gray { --primary-color: #636e72; --header-bg: #e0e0e0; --bg-color: #f8f9fa; }
 
     body {
-      background: #010206;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 40px 20px;
-      font-family: var(--font-display);
-      color: var(--text-main);
-      -webkit-font-smoothing: antialiased;
+      margin: 0;
+      padding: 0;
+      font-family: 'NotoSansSC-Regular', sans-serif;
     }
 
-    /* CARD ROOT WRAPPER - CHAMFERED COLLECTOR'S SHARD */
-    .kivotos-shard-card {
-      position: relative;
-      width: var(--card-w);
-      flex-shrink: 0;
-      background: var(--card-bg);
-      border-radius: 32px;
-      border: 1px solid var(--glass-border);
-      box-shadow: 0 50px 140px var(--glow), 0 20px 60px rgba(0, 0, 0, 0.95), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    .card-container {
+      background: linear-gradient(180deg, var(--bg-color) 0%, #ffffff 100%);
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      box-shadow: 0 20px 80px rgba(0, 0, 0, 0.12);
     }
 
-    /* Outer Holographic Foil Border Stroke */
-    .foil-trim {
-      position: absolute;
-      inset: 6px;
-      border-radius: 26px;
-      border: 1px dashed rgba(255, 255, 255, 0.12);
-      pointer-events: none;
-      z-index: 20;
-    }
-
-    /* Diagonal Cyber Ticker Tape */
-    .shard-ticker-bar {
-      position: absolute;
-      top: 0;
-      right: 0;
-      padding: 4px 40px 4px 30px;
-      background: var(--foil-gradient);
-      color: #000000;
-      font-family: var(--font-code);
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: 3px;
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 20px 100%);
-      z-index: 25;
-      box-shadow: 0 4px 20px var(--glow);
-    }
-
-    /* Corner Optical Reticles */
-    .optic-corner {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      border-color: var(--accent);
-      border-style: solid;
-      pointer-events: none;
-      z-index: 22;
-    }
-    .oc-tl { top: 14px; left: 14px; border-width: 2.5px 0 0 2.5px; }
-    .oc-tr { top: 14px; right: 14px; border-width: 2.5px 2.5px 0 0; }
-    .oc-bl { bottom: 14px; left: 14px; border-width: 0 0 2.5px 2.5px; }
-    .oc-br { bottom: 14px; right: 14px; border-width: 0 2.5px 2.5px 0; }
-
-    /* ================= 1. HEADER HUD ================= */
-    .shard-header {
-      position: relative;
-      z-index: 10;
+    /* 顶部标题栏 */
+    .header {
+      background: linear-gradient(135deg, var(--header-bg) 0%, rgba(255, 255, 255, 0.5) 100%);
+      padding: 40px 48px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 24px 32px 14px 32px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
     }
 
-    .brand-mark {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .schale-svg {
-      width: 32px;
-      height: 32px;
-      color: var(--accent);
-      filter: drop-shadow(0 0 10px var(--accent));
-    }
-
-    .brand-meta {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .meta-title {
-      font-family: var(--font-code);
-      font-size: 14px;
-      font-weight: 900;
+    .username {
+      font-size: 48px;
+      font-weight: bold;
+      color: var(--primary-color);
+      font-family: 'NotoSansSC-Bold', sans-serif;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
       letter-spacing: 2px;
-      color: var(--accent);
-      line-height: 1;
     }
 
-    .meta-sub {
-      font-family: var(--font-code);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      color: var(--text-sub);
-      margin-top: 3px;
+    .username span {
+      font-weight: normal;
+      color: #777;
+      font-family: 'NotoSansSC-Regular', sans-serif;
+      letter-spacing: 1px;
+      opacity: 0.9;
     }
 
-    .commander-badge {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    .date {
+      background: rgba(255, 255, 255, 0.8);
+      padding: 12px 32px;
+      border-radius: 32px;
+      font-size: 32px;
+      color: #555;
+      font-family: 'NotoSansSC-Regular', sans-serif;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
-    .commander-titles {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-
-    .c-label {
-      font-family: var(--font-code);
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      color: var(--accent);
-    }
-
-    .c-name {
-      font-family: var(--font-display);
-      font-size: 19px;
-      font-weight: 800;
-      color: #ffffff;
-      overflow-wrap: anywhere;
-      line-height: 1.4;
-    }
-
-    .date-chip {
-      padding: 6px 14px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--glass-border);
-      font-family: var(--font-code);
-      font-size: 13px;
-      font-weight: 800;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-    }
-
-    /* ================= 2. HERO ARTWORK STAGE ================= */
-    .shard-hero-stage {
-      position: relative;
+    /* 图片区域 */
+    .image-section {
       width: 100%;
-      height: 620px;
-      background: #02040a;
-      overflow: hidden;
-    }
-
-    .art-placeholder {
-      height: 100%;
-      display: grid;
-      place-items: center;
-      background: radial-gradient(ellipse at center, var(--glow), var(--card-bg) 75%);
-      color: var(--accent);
-      font-family: var(--font-code);
-      letter-spacing: 3px;
-    }
-
-    /* Ambient Dynamic Blur Backlight */
-    .art-back-glow {
-      position: absolute;
-      inset: -30px;
-      width: calc(100% + 60px);
-      height: calc(100% + 60px);
-      object-fit: cover;
-      object-position: center top;
-      filter: blur(60px) brightness(0.4) saturate(200%);
-      opacity: 0.8;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    /* Master Art Image (Full cover, zero black bars) */
-    .art-foreground-img {
+      background: #f0f0f0;
       position: relative;
-      z-index: 2;
+    }
+
+    .main-image {
       width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center top;
+      height: auto;
       display: block;
     }
 
-    /* Cinematic Edge Vignette & Seamless Bottom Blend */
-    .hero-vignette {
-      position: absolute;
-      inset: 0;
-      z-index: 3;
-      background:
-        linear-gradient(180deg, rgba(5, 8, 20, 0.2) 0%, transparent 20%, transparent 60%, var(--card-bg) 100%),
-        linear-gradient(90deg, rgba(5, 8, 20, 0.3) 0%, transparent 10%, transparent 90%, rgba(5, 8, 20, 0.3) 100%);
-      pointer-events: none;
-    }
-
-    /* Giant Vertical Calligraphic Monolith Layered Over Art */
-    .hero-floating-elements {
-      position: absolute;
-      inset: 20px 24px;
-      z-index: 5;
-      pointer-events: none;
+    .image-placeholder {
+      width: 100%;
+      height: 100%;
       display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .top-telemetry-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .glass-pill {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      border-radius: 20px;
-      background: rgba(4, 8, 20, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(16px);
-      font-family: var(--font-code);
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      color: #ffffff;
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-    }
-
-    .soundwave-chip {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      height: 12px;
-    }
-    .sw-b {
-      width: 2px;
-      background: var(--accent);
-      border-radius: 1px;
-    }
-
-    /* Asymmetric Master Title Ribbon Floating over Art Bottom-Left */
-    .hero-title-overlay {
-      align-self: flex-start;
-      display: flex;
-      align-items: flex-end;
-      gap: 16px;
-
-    }
-
-    .monolith-seal-badge {
-      display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: var(--foil-gradient);
-      color: #000000;
-      font-family: var(--font-code);
-      font-size: 11px;
-      font-weight: 900;
-      letter-spacing: 1px;
-      box-shadow: 0 8px 30px var(--glow);
-      text-align: center;
-      line-height: 1.1;
-    }
-
-    .master-title-hero {
-      font-family: var(--font-kanji);
-      font-size: 96px;
-      font-weight: 900;
-      line-height: 1.5;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-size: 56px;
+      font-family: 'SSFangTangTi', 'NotoSansSC-Bold', sans-serif;
       letter-spacing: 8px;
-      background: var(--kanji-gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 6px 30px var(--glow)) drop-shadow(0 2px 8px rgba(0,0,0,0.9));
+      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    /* 运势内容区域 - 不再遮挡图片 */
+    .fortune-content {
+      background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+      margin: 36px 0;
+      border-radius: 0;
+      padding: 60px 48px;
+      box-shadow: none;
+    }
+
+    .fortune-title {
+      font-size: 140px;
+      color: var(--primary-color);
+      text-align: center;
+      margin-bottom: 24px;
+      font-family: 'SSFangTangTi', 'NotoSansSC-Bold', sans-serif;
+      font-weight: bold;
+      letter-spacing: 30px;
+      text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.15);
+      -webkit-text-stroke: 2px rgba(255, 255, 255, 0.3);
+    }
+
+    /* 星级 */
+    .stars-container {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .star {
+      font-size: 64px;
+      color: #f1c40f;
+      text-shadow: 0 3px 6px rgba(241, 196, 15, 0.4);
+      transition: transform 0.2s;
+    }
+
+    .star.empty {
+      color: #e0e0e0;
       text-shadow: none;
     }
 
-    .stars-floating-strip {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 12px;
+    /* 描述区域 */
+    .desc-box {
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+      border-left: 8px solid var(--primary-color);
+      padding: 40px 48px;
+      border-radius: 0 24px 24px 0;
+      margin-top: 36px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
-    .star-glyph {
-      font-size: 26px;
-      line-height: 1;
-      color: var(--accent-gold);
-      text-shadow: 0 0 14px var(--accent-gold);
-    }
-    .star-glyph.empty {
-      color: rgba(255, 255, 255, 0.2);
-      text-shadow: none;
-    }
-
-    /* ================= 3. LOWER ORACLE SLAB ================= */
-    .shard-lower-slab {
-      position: relative;
-      z-index: 10;
-      padding: 0 28px 24px 28px;
-      margin-top: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    /* Glassmorphic Prophecy Sanctuary */
-    .prophecy-sanctuary {
-      position: relative;
-      padding: 20px 24px;
-      border-radius: 20px;
-      background: var(--glass-bg);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(24px);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    }
-
-    .sanctuary-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    .oracle-code-tag {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--font-code);
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 2px;
-      color: var(--accent);
-    }
-
-    .oracle-tag-glyph {
-      width: 14px;
-      height: 14px;
-    }
-
-    .oracle-azimuth {
-      font-family: var(--font-code);
-      font-size: 10px;
-      font-weight: 800;
+    .desc-text {
+      font-size: 38px;
+      line-height: 1.9;
+      color: #333;
+      font-family: 'NotoSansSC-Regular', sans-serif;
       letter-spacing: 1px;
-      color: var(--text-sub);
     }
 
-    .mantra-quote {
-      font-family: var(--font-kanji);
-      font-size: 19px;
-      font-weight: 800;
-      line-height: 1.65;
-      letter-spacing: 1px;
-      color: #ffffff;
-      margin: 0;
-    }
-
-    .mantra-echo {
-      margin-top: 8px;
-      font-family: var(--font-kanji);
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-sub);
+    .extra-text {
+      margin-top: 24px;
+      font-size: 30px;
+      color: #666;
+      font-style: italic;
+      font-family: 'NotoSansSC-Regular', sans-serif;
       letter-spacing: 0.5px;
     }
 
-    /* ================= 4. CARD FOOTER ================= */
-    .shard-footer-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 8px 0 8px;
-      font-family: var(--font-code);
-      font-size: 9px;
-      font-weight: 800;
-      letter-spacing: 2px;
-      color: var(--text-sub);
+    /* 底部品牌 */
+    .footer {
+      text-align: center;
+      padding: 36px;
+      font-size: 26px;
+      color: #999;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      font-family: 'NotoSansSC-Regular', sans-serif;
     }
 
-    .footer-barcodes {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      height: 14px;
+    .footer-brand {
+      font-weight: bold;
+      color: #888;
+      font-family: 'NotoSansSC-Bold', sans-serif;
     }
-    .bc-l { width: 1.5px; height: 100%; background: var(--accent); }
-    .bc-m { width: 3px; height: 100%; background: var(--accent); }
-    .bc-w { width: 4.5px; height: 100%; background: var(--accent); }
-    .bc-s { width: 1px; height: 100%; background: var(--accent); opacity: 0.5; }
   </style>
 </head>
 <body>
-
-<div class="card-container kivotos-shard-card {{ theme_color | e }}">
-  <div class="foil-trim" aria-hidden="true"></div>
-  <div class="shard-ticker-bar" aria-hidden="true">
-    <span>KIVOTOS ARCHIVE // ARCHETYPE-00</span>
+<div class="card-container {{ theme_color | e }}">
+  <!-- 顶部标题栏 -->
+  <div class="header">
+    <div class="username">{{ username | e }} <span>的运势</span></div>
+    <div class="date">{{ date_str | e }}</div>
   </div>
 
-  <!-- Corner Reticles -->
-  <div class="optic-corner oc-tl" aria-hidden="true"></div>
-  <div class="optic-corner oc-tr" aria-hidden="true"></div>
-  <div class="optic-corner oc-bl" aria-hidden="true"></div>
-  <div class="optic-corner oc-br" aria-hidden="true"></div>
-
-  <!-- SECTION 1: HEADER HUD -->
-  <header class="shard-header">
-    <div class="brand-mark">
-      <svg class="schale-svg" viewBox="0 0 24 24" fill="currentColor">
-        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5" />
-        <circle cx="12" cy="12" r="4" fill="currentColor" />
-      </svg>
-      <div class="brand-meta">
-        <span class="meta-title">KIVOTOS // SHITTIM OS</span>
-        <span class="meta-sub">ORACLE TRANSMISSION PROTOCOL</span>
-      </div>
-    </div>
-
-    <div class="commander-badge">
-      <div class="commander-titles">
-        <span class="c-label">COMMANDER // SCHALE</span>
-        <span class="c-name">{{ username | e }}</span>
-      </div>
-      <div class="date-chip">{{ date_str | e }}</div>
-    </div>
-  </header>
-
-  <!-- SECTION 2: HERO ARTWORK STAGE WITH OVERLAYS (ZERO BLACK BARS) -->
-  <div class="shard-hero-stage">
+  <!-- 图片区域 -->
+  <div class="image-section">
     {% if image_base64 %}
-    <img class="art-back-glow" src="data:image/jpeg;base64,{{ image_base64 | e }}" alt="" aria-hidden="true" />
-    <img class="art-foreground-img" src="data:image/jpeg;base64,{{ image_base64 | e }}" alt="Oracle Resonance Visual" />
+    <img class="main-image" src="data:image/jpeg;base64,{{ image_base64 | e }}" alt="Fortune Image" />
     {% else %}
-    <div class="art-placeholder">
-      <span>KIVOTOS // ORACLE VIEWPORT</span>
-    </div>
+    <div class="image-placeholder">今日运势</div>
     {% endif %}
-    <div class="hero-vignette" aria-hidden="true"></div>
+  </div>
 
-    <!-- Floating HUD Elements Layered Over Art -->
-    <div class="hero-floating-elements" aria-hidden="true">
-      <div class="top-telemetry-row">
-        <div class="glass-pill">
-          <div class="soundwave-chip">
-            <span class="sw-b" style="height:40%;"></span>
-            <span class="sw-b" style="height:70%;"></span>
-            <span class="sw-b" style="height:100%;"></span>
-            <span class="sw-b" style="height:55%;"></span>
-            <span class="sw-b" style="height:85%;"></span>
-          </div>
-          <span>7.83Hz // FULL-SPECTRUM</span>
-        </div>
-        <div class="glass-pill">
-          <span>EXPOSURE 100% // SYNCHRO</span>
-        </div>
-      </div>
-
-      <!-- Asymmetric Master Kanji Over Art -->
-      <div class="hero-title-overlay">
-        <div class="monolith-seal-badge">
-          <span>EX</span>
-          <span>ZENITH</span>
-        </div>
-        <div class="master-title-box">
-          <div class="stars-floating-strip">
-            {{ stars_display | safe }}
-          </div>
-          <div class="master-title-hero">{{ title | e }}</div>
-        </div>
-      </div>
+  <!-- 运势内容 -->
+  <div class="fortune-content">
+    <div class="fortune-title">{{ title | e }}</div>
+    <div class="stars-container">{{ stars_display | safe }}</div>
+    <div class="desc-box">
+      <div class="desc-text">{{ description | e }}</div>
+      {% if extra_message %}<div class="extra-text">{{ extra_message | e }}</div>{% endif %}
     </div>
   </div>
 
-  <!-- SECTION 3: LOWER ORACLE SLAB -->
-  <div class="shard-lower-slab">
-    <!-- Sanctuary Prophecy Quote -->
-    <div class="prophecy-sanctuary">
-      <div class="sanctuary-header">
-        <div class="oracle-code-tag">
-          <svg class="oracle-tag-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polygon points="12 2 2 22 22 22" />
-          </svg>
-          <span>ORACLE CODE // 001</span>
-        </div>
-        <div class="oracle-azimuth">
-          <span>AZIMUTH: 137.5° ◆ SCHALE</span>
-        </div>
-      </div>
-      <p class="mantra-quote">“{{ description | e }}”</p>
-      {% if extra_message %}<p class="mantra-echo">{{ extra_message | e }}</p>{% endif %}
-    </div>
-
-    <!-- SECTION 4: CARD FOOTER -->
-    <footer class="shard-footer-bar">
-      <div class="footer-barcodes">
-        <span class="bc-w"></span>
-        <span class="bc-s"></span>
-        <span class="bc-m"></span>
-        <span class="bc-l"></span>
-        <span class="bc-s"></span>
-        <span class="bc-m"></span>
-        <span class="bc-w"></span>
-      </div>
-      <span>KIVOTOS // 35.6895°N 139.6917°E ◆ SCHALE ARCHIVAL PROTOCOL</span>
-      <span>SEC-LEVEL: OMEGA</span>
-    </footer>
+  <!-- 底部品牌 -->
+  <div class="footer">
+    <span class="footer-brand">Support By AstrBot</span>
   </div>
 </div>
-
 </body>
 </html>
