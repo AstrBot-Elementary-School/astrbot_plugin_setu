@@ -15,6 +15,7 @@ import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent
 
 from ...shared import get_logger
+from ...shared.config import MessagesConfig
 
 logger = get_logger()
 
@@ -178,7 +179,7 @@ async def send_with_filter_chain(
             return ""
 
     # All filters failed
-    return config.resolve_message("send_failed") or "图片发送失败"
+    return MessagesConfig.resolve_message("send_failed") or "图片发送失败"
 
 
 __all__ = [

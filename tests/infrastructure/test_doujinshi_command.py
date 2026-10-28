@@ -22,9 +22,6 @@ class _Config:
     doujinshi_max_page = 0
     tag_alias = "碧蓝档案=blue_archive"
 
-    def resolve_message(self, key: str, **kwargs: object) -> str:
-        return {"doujinshi_failed": "生成失败"}.get(key, "")
-
 
 class _DoujinshiService:
     def __init__(self, generated: GeneratedDoujinshiPdf) -> None:

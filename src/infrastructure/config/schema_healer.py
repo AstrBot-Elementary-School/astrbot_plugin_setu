@@ -192,7 +192,7 @@ def heal_astrbot_plugin_config(
 
     changes: list[str] = []
     aliased = apply_legacy_config_aliases(raw_config, changes)
-    for key in ("messages", "cache", "fortune_session_configs"):
+    for key in ("messages", "message_overrides", "cache", "fortune_session_configs"):
         if key in aliased:
             aliased.pop(key)
             record_config_heal(changes, key, "removed retired configuration")

@@ -14,7 +14,7 @@ from astrbot.api.event import AstrMessageEvent
 from ...application.session_config import SessionConfigService
 from ...application.setu.dto import ImagePayload
 from ...shared import get_logger
-from ...shared.config import should_auto_revoke
+from ...shared.config import MessagesConfig, should_auto_revoke
 from ...shared.send_cache import get_send_cache, schedule_send_cache_cleanup
 from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
@@ -800,17 +800,10 @@ class ImageSender:
         return scheduled
 
     def _send_failed_message(self) -> str | None:
-        config = self._config
-        if config and hasattr(config, "resolve_message"):
-            return config.resolve_message("send_failed")
-        return "图片发送失败，请稍后再试。"
+        return MessagesConfig.resolve_message("send_failed")
 
     def _resolve_message(self, key: str, **kwargs: Any) -> str | None:
-        """Resolve configured message text with graceful fallback."""
-        config = self._config
-        if config and hasattr(config, "resolve_message"):
-            return config.resolve_message(key, **kwargs)
-        return None
+        return MessagesConfig.resolve_message(key, **kwargs)
 
     def _log_send_summary(
         self,

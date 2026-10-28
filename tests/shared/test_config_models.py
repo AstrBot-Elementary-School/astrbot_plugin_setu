@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 from astrbot_plugin_setu.src.infrastructure.config import heal_astrbot_plugin_config
 from astrbot_plugin_setu.src.shared.config import (
+    MessagesConfig,
     SetuPluginConfig,
     should_auto_revoke,
 )
@@ -63,8 +67,6 @@ def test_auto_revoke_scope_validation(sample_config_dict) -> None:
 
 
 def test_only_failure_messages_are_builtin() -> None:
-    config = SetuPluginConfig()
-
     for key in (
         "fetching",
         "found",
@@ -74,11 +76,28 @@ def test_only_failure_messages_are_builtin() -> None:
         "fortune_refresh_group_done",
         "fortune_refresh_all_done",
     ):
-        assert config.resolve_message(key) is None
+        assert MessagesConfig.resolve_message(key) is None
     assert (
-        config.resolve_message("invalid_count", min_count=1, max_count=7)
+        MessagesConfig.resolve_message("invalid_count", min_count=1, max_count=7)
         == "数量解析失败，图片数量必须在1-7之间"
     )
+
+
+def test_legacy_message_overrides_cannot_change_error_text() -> None:
+    schema = json.loads(
+        (Path(__file__).parents[2] / "_conf_schema.json").read_text(encoding="utf-8")
+    )
+    raw = {
+        "messages": {"send_failed": {"text": "自定义失败"}},
+        "message_overrides": {"send_failed": "自定义失败"},
+    }
+    healed, changes = heal_astrbot_plugin_config(raw, schema)
+
+    assert "messages" not in healed
+    assert "message_overrides" not in healed
+    assert any("message_overrides" in change for change in changes)
+    SetuPluginConfig(**healed)
+    assert MessagesConfig.resolve_message("send_failed") == "图片发送失败，请稍后再试。"
 
 
 def test_config_healer_migrates_legacy_auto_revoke_scope() -> None:
