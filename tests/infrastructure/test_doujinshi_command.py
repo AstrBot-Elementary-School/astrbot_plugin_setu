@@ -23,10 +23,7 @@ class _Config:
     tag_alias = "碧蓝档案=blue_archive"
 
     def resolve_message(self, key: str, **kwargs: object) -> str:
-        return {
-            "doujinshi_fetching": "正在生成文件",
-            "doujinshi_failed": "生成失败",
-        }.get(key, "")
+        return {"doujinshi_failed": "生成失败"}.get(key, "")
 
 
 class _DoujinshiService:
@@ -91,7 +88,7 @@ async def test_random_doujinshi_schedules_direct_file_revoke(
 
     results = [result async for result in handler.random_doujinshi_command(mock_event)]
 
-    assert len(results) == 1
+    assert results == []
     scheduler.schedule_revoke.assert_awaited_once_with(mock_event, "file-message", 1800)
     mock_event.bot.send_group_msg.assert_awaited_once()
     payload = mock_event.bot.send_group_msg.await_args.kwargs

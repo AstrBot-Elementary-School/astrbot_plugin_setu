@@ -28,7 +28,7 @@
 改动前按任务查阅：
 
 - 架构与启动分工见 [`../project/architecture.md`](../project/architecture.md)
-- 命令见[命令参考](../usage/commands.md)；配置模型见 `src/shared/config/models.py`，内置提示见 `src/shared/config/messages.py`
+- 命令见[命令参考](../usage/commands.md)；配置模型见 `src/shared/config/models.py`，错误文案见 `src/shared/config/messages.py`
 - 平台发送和 provider 适配见 `src/infrastructure/providers/` 和 `src/infrastructure/sending/`
 
 若要改变现有行为，在 PR 中说明原因和兼容影响。

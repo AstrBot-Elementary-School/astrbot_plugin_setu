@@ -26,7 +26,6 @@ class SendResult:
     """Result of a send filter attempt."""
 
     success: bool
-    message: str | None = None
     images_sent: int = 0
     error: str | None = None
 
@@ -109,9 +108,7 @@ async def html_card_filter(
         html_content = _build_html_card(images, config)
         await event.send(html_content)
         logger.debug("[html] Sent %d images as HTML card", len(images))
-        return SendResult(
-            success=True, images_sent=len(images), message="HTML卡片发送成功"
-        )
+        return SendResult(success=True, images_sent=len(images))
     except Exception as e:
         logger.warning("[html] HTML card send failed: %s", e)
         return SendResult(success=False, error=str(e))
@@ -178,11 +175,10 @@ async def send_with_filter_chain(
     for filter_func in chain:
         result = await filter_func(images, event, config)
         if result.success:
-            return result.message or "发送成功"
+            return ""
 
     # All filters failed
-    fail_msg = config.msg_send_failed_text if config else None
-    return fail_msg or "图片发送失败"
+    return config.resolve_message("send_failed") or "图片发送失败"
 
 
 __all__ = [

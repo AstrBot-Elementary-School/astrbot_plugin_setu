@@ -186,9 +186,6 @@ class SetuCommandHandler:
                 yield result
             return
 
-        if result := self._plain(event, self._message("doujinshi_fetching")):
-            yield result
-
         if self._doujinshi_service is None:
             logger.error(
                 "Doujinshi service is unavailable before plugin initialization"
@@ -370,7 +367,7 @@ class SetuCommandHandler:
                     )
             if not accepted:
                 return self._message("send_failed")
-            return f"Successfully fetched {payload.count} images"
+            return "ok"
         except Exception:
             return self._message("fetch_failed")
 
@@ -387,10 +384,6 @@ class SetuCommandHandler:
         self, event: AstrMessageEvent, num: int, tags: list[str], is_r18: bool, config
     ) -> AsyncGenerator[Any, None]:
         """Fetch images and send to user."""
-        fetching_message = self._message("fetching")
-        if fetching_message:
-            yield event.plain_result(fetching_message)
-
         init_provider_from_config(config)
         provider = get_provider()
         use_case = GetSetuImagesUseCase(provider)

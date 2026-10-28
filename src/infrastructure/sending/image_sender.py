@@ -188,12 +188,7 @@ class ImageSender:
                 if fail_message:
                     yield event.plain_result(fail_message)
             else:
-                scheduled_count = await self._schedule_revoke_for_result(
-                    event, html_result, options
-                )
-                await self._send_post_delivery_messages(
-                    event, payload.count, options, payload.r18, scheduled_count
-                )
+                await self._schedule_revoke_for_result(event, html_result, options)
                 if html_result.pending:
                     yield {
                         "send_success": True,
@@ -233,7 +228,6 @@ class ImageSender:
         any_pending = False
         any_failed = False
         all_failed = True
-        scheduled_revoke_count = 0
 
         for batch_idx, indices in enumerate(batch_indices):
             batch_chain = [chain[i] for i in indices]
@@ -250,9 +244,7 @@ class ImageSender:
             )
             if send_result.accepted:
                 all_failed = False
-                scheduled_revoke_count += await self._schedule_revoke_for_result(
-                    event, send_result, options
-                )
+                await self._schedule_revoke_for_result(event, send_result, options)
                 if send_result.pending:
                     any_pending = True
             else:
@@ -288,13 +280,6 @@ class ImageSender:
                 result["send_pending"] = True
             yield result
         else:
-            await self._send_post_delivery_messages(
-                event,
-                payload.count,
-                options,
-                payload.r18,
-                scheduled_revoke_count,
-            )
             if any_pending:
                 self._log.warning(
                     "[send] some batches pending: session=%s, count=%d, mode=%s",
@@ -521,12 +506,7 @@ class ImageSender:
                 yield event.plain_result(fail_message)
             return
 
-        scheduled_count = await self._schedule_revoke_for_result(
-            event, send_result, options
-        )
-        await self._send_post_delivery_messages(
-            event, len(images), options, True, scheduled_count
-        )
+        await self._schedule_revoke_for_result(event, send_result, options)
         if send_result.pending:
             yield {
                 "send_success": True,
@@ -757,16 +737,6 @@ class ImageSender:
             return Comp.Image.fromFileSystem(str(path))
         return Comp.Image(file=text)
 
-    async def _send_plain_text(self, event: AstrMessageEvent, text: str) -> bool:
-        """Send plain text message."""
-        try:
-            result = event.plain_result(text)
-            await self._context.send_message(event.unified_msg_origin, result)
-            return True
-        except Exception as exc:
-            self._log.warning("[send] failed to send plain text: error=%s", exc)
-            return False
-
     def _is_forward_supported(self, event: AstrMessageEvent) -> bool:
         """Check if platform supports forward messages (cached per platform)."""
         platform_name = self._get_platform_name(event)
@@ -828,56 +798,6 @@ class ImageSender:
             if await schedule_revoke(event, message_id, options.revoke_delay):
                 scheduled += 1
         return scheduled
-
-    async def _send_post_delivery_messages(
-        self,
-        event: AstrMessageEvent,
-        count: int,
-        options: SendOptions,
-        is_r18: bool,
-        scheduled_revoke_count: int,
-    ) -> None:
-        """Send optional plain-text notices after at least one payload was accepted."""
-        if self._content_type == "fortune":
-            return
-        found_msg = self._format_found_message(
-            count,
-            scope=options.auto_revoke_scope,
-            r18=is_r18,
-        )
-        if found_msg:
-            await self._send_plain_text(event, found_msg)
-
-        if scheduled_revoke_count <= 0:
-            return
-        revoke_msg = self._resolve_message(
-            "revoke_scheduled",
-            count=count,
-            revoke_delay=options.revoke_delay,
-            scope=options.auto_revoke_scope,
-            r18=is_r18,
-        )
-        if revoke_msg:
-            await self._send_plain_text(event, revoke_msg)
-
-    def _format_found_message(
-        self,
-        count: int,
-        revoke_delay: int | None = None,
-        scope: str = "",
-        r18: bool | str = "",
-    ) -> str | None:
-        """Format found message with optional revoke delay."""
-        config = self._config
-        if config and hasattr(config, "format_found_message"):
-            return config.format_found_message(count, revoke_delay, scope, r18)
-        return self._resolve_message(
-            "found",
-            count=count,
-            revoke_delay=revoke_delay or "",
-            scope=scope,
-            r18=r18,
-        )
 
     def _send_failed_message(self) -> str | None:
         config = self._config

@@ -20,7 +20,7 @@
 - 运势生成：`src/domain/fortune/`；命令适配与渲染：`src/infrastructure/astrbot/`。
 - 图片源适配：`src/infrastructure/providers/`；本子文件生成：`src/infrastructure/doujinshi/`。
 - 图片与文件发送、传输和撤回：`src/infrastructure/sending/`。
-- 配置界面：`_conf_schema.json`；配置模型与内置提示：`src/shared/config/`；迁移：`src/infrastructure/config/`。
+- 配置界面：`_conf_schema.json`；配置模型与错误文案：`src/shared/config/`；迁移：`src/infrastructure/config/`。
 - 运行数据存储：`src/infrastructure/persistence/`；发送缓存：`src/shared/send_cache.py`。
 - 运势卡片模板：`templates/`；测试与夹具：`tests/`。
 

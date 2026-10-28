@@ -71,10 +71,7 @@ async def test_fortune_delivery_and_text_fallback(
         assert payloads[0].raw_bytes == (b"card",)
     if outcome in ("success", "pending"):
         assert completed == [True]
-        if entry == "command":
-            assert text == ""
-        else:
-            assert "已提交今日运势图" in text
+        assert text == ("ok" if entry == "tool" else "")
     else:
         assert "运势图未能发送" in text and "小吉" in text
         assert "generic image failure" not in text

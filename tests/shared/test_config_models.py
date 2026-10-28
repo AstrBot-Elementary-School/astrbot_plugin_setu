@@ -62,35 +62,23 @@ def test_auto_revoke_scope_validation(sample_config_dict) -> None:
         SetuPluginConfig(**invalid)
 
 
-def test_legacy_message_objects_do_not_change_builtin_text() -> None:
-    config = SetuPluginConfig(
-        messages={
-            "fetch_failed": {"enabled": True},
-            "revoke_scheduled": {"enabled": True},
-        }
-    )
+def test_only_failure_messages_are_builtin() -> None:
+    config = SetuPluginConfig()
 
-    assert config.resolve_message("fetch_failed") == "获取图片失败，请稍后再试"
+    for key in (
+        "fetching",
+        "found",
+        "revoke_scheduled",
+        "doujinshi_fetching",
+        "fortune_image_submitted",
+        "fortune_refresh_group_done",
+        "fortune_refresh_all_done",
+    ):
+        assert config.resolve_message(key) is None
     assert (
-        config.resolve_message("revoke_scheduled", revoke_delay=30)
-        == "已设置自动撤回，将在 30 秒后撤回。"
+        config.resolve_message("invalid_count", min_count=1, max_count=7)
+        == "数量解析失败，图片数量必须在1-7之间"
     )
-
-
-def test_resolve_message_supports_placeholders(sample_config_dict) -> None:
-    config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        **sample_config_dict.get("messages", {}),
-        "max_count_exceeded": {
-            "enabled": True,
-            "text": "一次最多只能获取{max_count}张哦~",
-        },
-    }
-    config = SetuPluginConfig(**config_dict)
-
-    text = config.resolve_message("max_count_exceeded", max_count=7)
-
-    assert text == "一次最多只能获取7张哦~"
 
 
 def test_config_healer_migrates_legacy_auto_revoke_scope() -> None:
