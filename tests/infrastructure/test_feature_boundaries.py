@@ -194,4 +194,6 @@ async def test_r18_is_request_only_and_not_a_provider_tag(
             ]
         assert results == []
         assert captured == [(2, ["少女"], True)]
+        if entry == "command":
+            mock_event.stop_event.assert_called()
     assert cfg.content_mode == "mix"

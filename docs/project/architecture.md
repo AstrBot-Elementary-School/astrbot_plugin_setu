@@ -37,7 +37,6 @@ tests/             # 单元与集成测试
 2. 用例通过 `ImageProviderPort` 获取图片 URL，并在下载暂时失败时按内部默认 3 轮对同一 URL 做确认重试
 3. `ImageSender` 按策略发送：直接发送 / 合并转发 → 可选 NapCat 本地 `file://` 直通 → 确认失败后 NapCat 流式或 HTML 卡片 fallback → Docx 封装
 4. 发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时标记为可能仍在送达，不立即触发 fallback，避免延迟送达后重复发图
-5. 发送结果通过 `resolve_message()` 生成内置提示
 6. 缓存命中时复用本地文件，降低内存压力
 7. 自动撤回内容含 `setu`、命中撤回范围且拿到 `message_id` 时，统一撤回调度器将任务写入 `revoke_tasks.json`，重启后按原到期时间调用 OneBot `delete_msg`
 
@@ -122,7 +121,7 @@ flowchart TD
 
 配置界面使用 `show_advanced` 显示开关与 AstrBot 原生条件显示，隐藏项仍参与保存和解析。卡片策略属于 `delivery.html_card_strategy`；多个图片源固定轮流使用，运势复用全局图片源。
 
-缓存、卡片间距、补图轮次和传输分块采用固定默认，不作为隐藏可调设置。提示与占位符集中在 `src/shared/config/messages.py`，不再开放覆盖。
+缓存、卡片间距、补图轮次和传输分块采用固定默认，不作为隐藏可调设置。发送成功不追加文字提示；失败与拒绝类文案集中在 `src/shared/config/messages.py`，不再开放覆盖。
 
 ### 首次升级
 

@@ -99,7 +99,7 @@ async def test_send_images_streams_on_fallback(
     ]
 
     assert results == [{"send_success": True, "image_count": 1}]
-    assert len(sent_results) == 3
+    assert len(sent_results) == 2
     retried_chain = sent_results[1].result_chain
     assert retried_chain[0].file == "stream://image"
     assert mock_event.bot.call_action.called
@@ -136,7 +136,7 @@ async def test_send_images_does_not_fallback_when_send_ack_times_out(
     ]
 
     assert results == [{"send_success": True, "image_count": 1, "send_pending": True}]
-    assert context.send_message.await_count == 2
+    assert context.send_message.await_count == 1
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -171,7 +171,7 @@ async def test_send_images_treats_napcat_none_ack_as_pending(
     ]
 
     assert results == [{"send_success": True, "image_count": 1, "send_pending": True}]
-    assert context.send_message.await_count == 2
+    assert context.send_message.await_count == 1
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -267,7 +267,7 @@ async def test_send_images_does_not_fallback_when_forward_ack_times_out(
     ]
 
     assert results == [{"send_success": True, "image_count": 2, "send_pending": True}]
-    assert context.send_message.await_count == 2
+    assert context.send_message.await_count == 1
     mock_event.bot.call_action.assert_not_called()
 
 
@@ -352,7 +352,7 @@ async def test_send_images_passthroughs_local_file_when_always_enabled(
         group_id=123456,
         message=[{"type": "image", "data": {"file": image_path.resolve().as_uri()}}],
     )
-    assert context.send_message.await_count == 1
+    context.send_message.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -403,7 +403,7 @@ async def test_send_images_local_file_fallback_runs_before_stream(
     assert results == [{"send_success": True, "image_count": 1}]
     mock_event.bot.send_group_msg.assert_awaited_once()
     mock_event.bot.call_action.assert_not_called()
-    assert len(sent_results) == 2
+    assert len(sent_results) == 1
 
 
 @pytest.mark.asyncio
@@ -550,10 +550,6 @@ async def test_html_card_only_preserves_pending_send_status(
     config_dict["delivery"] = {
         **config_dict["delivery"],
         "html_card_strategy": "always",
-    }
-    config_dict["messages"] = {
-        **sample_config_dict.get("messages", {}),
-        "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
     }
     config = SetuPluginConfig(**config_dict)
     sender = ImageSender(config)
@@ -838,11 +834,6 @@ async def test_send_images_ignores_legacy_send_failed_toggle(
 
     mock_event.platform.name = "unknown-platform"
     config_dict = sample_config_dict.copy()
-    config_dict["messages"] = {
-        "fetching": {"enabled": False, "text": "正在获取图片，请稍候..."},
-        "found": {"enabled": False, "text": "找到 {count} 张符合要求的图片~"},
-        "send_failed": {"enabled": False, "text": "图片发送失败，请稍后再试。"},
-    }
     config = SetuPluginConfig(**config_dict)
     payload = ImagePayload(
         urls=("https://example.com/image.jpg",),
@@ -925,7 +916,6 @@ async def test_r18_docx_delivery_terminal_states(
         )
     )
     sender._schedule_revoke_for_result = AsyncMock(return_value=1)
-    sender._send_post_delivery_messages = AsyncMock()
     set_plugin_context(MagicMock())
     results_by_outcome = {
         "success": SendAttemptResult.success("123"),
@@ -1030,6 +1020,3 @@ async def test_fortune_transport_uses_its_own_revoke_policy(
     assert options.compress_enabled and options.compress_max_mb == 9
     assert options.napcat_stream_mode == "always"
     assert options.napcat_local_file_allowed_roots == ("/shared",)
-    sender._send_plain_text = AsyncMock()
-    await sender._send_post_delivery_messages(mock_event, 1, options, False, 1)
-    sender._send_plain_text.assert_not_awaited()

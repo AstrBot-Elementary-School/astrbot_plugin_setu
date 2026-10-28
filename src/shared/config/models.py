@@ -19,7 +19,6 @@ from pydantic import (
 )
 
 from ...domain.setu.triggers import compile_trigger
-from .messages import MessagesConfig
 
 
 class ImageSize(str, Enum):
@@ -637,27 +636,3 @@ class SetuPluginConfig(SessionOverridesConfig):
             if item.template_key == platform:
                 return item
         return None
-
-    def resolve_message(self, key: str, **kwargs: Any) -> str | None:
-        """Resolve a built-in message with placeholder substitution."""
-        return MessagesConfig.resolve_message(key, **kwargs)
-
-    def format_found_message(
-        self,
-        count: int,
-        revoke_delay: int | None = None,
-        scope: str = "",
-        r18: bool | str = "",
-    ) -> str:
-        """Format found message with placeholders."""
-        r18_text = "是" if r18 is True else "否" if r18 is False else r18
-        return (
-            self.resolve_message(
-                "found",
-                count=count,
-                revoke_delay=revoke_delay or "",
-                scope=scope,
-                r18=r18_text,
-            )
-            or ""
-        )

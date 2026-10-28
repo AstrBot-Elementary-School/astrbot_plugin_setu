@@ -51,6 +51,14 @@ class FortuneCommandHandler:
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """Handle /今日运势 command (/今日运势, /jrys)."""
+        async for result in self._fortune_command(event):
+            yield result
+        # 图片经 context 直发，不会记录发送操作；终止事件以免默认 LLM 追加回复。
+        event.stop_event()
+
+    async def _fortune_command(
+        self, event: AstrMessageEvent
+    ) -> AsyncGenerator[Any, None]:
         if unavailable := self._unavailable(tool=False):
             yield event.plain_result(unavailable)
             return
@@ -211,14 +219,12 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            text = self._message("fortune_refresh_group_done", count=refreshed_count)
-            if result := self._plain(event, text):
-                yield result
+            await service.pregenerate_active_users()
         except Exception as e:
             text = self._message("fortune_refresh_group_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+        event.stop_event()
 
     async def refresh_all_fortune_command(
         self, event: AstrMessageEvent
@@ -243,14 +249,12 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            text = self._message("fortune_refresh_all_done", count=refreshed_count)
-            if result := self._plain(event, text):
-                yield result
+            await service.pregenerate_active_users()
         except Exception as e:
             text = self._message("fortune_refresh_all_failed", error=e)
             if result := self._plain(event, text):
                 yield result
+        event.stop_event()
 
     # ==================== LLM Tool Handlers ====================
 
@@ -274,9 +278,10 @@ class FortuneCommandHandler:
             service = FortuneService(repository=repo)
             result = await service.get_or_create_fortune(request)
             sent = await self._send_fortune_image(event, result, service, config)
+            if sent:
+                return "ok"
             return self._message(
-                "fortune_image_submitted" if sent else "fortune_image_failed",
-                fortune=self._format_fortune(result),
+                "fortune_image_failed", fortune=self._format_fortune(result)
             )
         except Exception as e:
             return self._message("fortune_get_failed", error=e)
@@ -299,8 +304,8 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            result = await service.refresh_fortune(request)
-            return f"今日运势已刷新: {result.title}"
+            await service.refresh_fortune(request)
+            return "ok"
         except Exception as e:
             return self._message("fortune_refresh_failed", error=e)
 
@@ -324,8 +329,8 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            return self._message("fortune_refresh_group_done", count=refreshed_count)
+            await service.pregenerate_active_users()
+            return "ok"
         except Exception as e:
             return self._message("fortune_refresh_group_failed", error=e)
 
@@ -345,8 +350,8 @@ class FortuneCommandHandler:
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            return self._message("fortune_refresh_all_done", count=refreshed_count)
+            await service.pregenerate_active_users()
+            return "ok"
         except Exception as e:
             return self._message("fortune_refresh_all_failed", error=e)
 

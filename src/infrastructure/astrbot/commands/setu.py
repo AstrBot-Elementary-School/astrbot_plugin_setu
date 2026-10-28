@@ -140,6 +140,7 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
@@ -147,6 +148,8 @@ class SetuCommandHandler:
                 event, count, tags, natural=natural
             ):
                 yield result
+            # 媒体经 context 或原始 action 发送，不会记录发送操作，需显式终止以免默认 LLM 再回复。
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 
@@ -157,11 +160,13 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
             async for result in self._handle_random_doujinshi_internal(event, tags):
                 yield result
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 
@@ -185,9 +190,6 @@ class SetuCommandHandler:
             if result := self._plain(event, msg):
                 yield result
             return
-
-        if result := self._plain(event, self._message("doujinshi_fetching")):
-            yield result
 
         if self._doujinshi_service is None:
             logger.error(
@@ -370,7 +372,7 @@ class SetuCommandHandler:
                     )
             if not accepted:
                 return self._message("send_failed")
-            return f"Successfully fetched {payload.count} images"
+            return "ok"
         except Exception:
             return self._message("fetch_failed")
 
@@ -387,10 +389,6 @@ class SetuCommandHandler:
         self, event: AstrMessageEvent, num: int, tags: list[str], is_r18: bool, config
     ) -> AsyncGenerator[Any, None]:
         """Fetch images and send to user."""
-        fetching_message = self._message("fetching")
-        if fetching_message:
-            yield event.plain_result(fetching_message)
-
         init_provider_from_config(config)
         provider = get_provider()
         use_case = GetSetuImagesUseCase(provider)

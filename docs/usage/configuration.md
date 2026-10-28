@@ -177,11 +177,11 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 ]
 ```
 
-## 内部默认与内置提示
+## 内部默认与错误文案
 
 以下不再开放配置：缓存开启、TTL 2 小时、容量 200 条、启动清理；卡片间距和内边距均为 6；流式分块 64 KiB；补图轮次 3。旧调优值停止生效，传输模式和本地共享目录白名单仍可配置。
 
-提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{count}`、`{max_count}`、`{min_count}`、`{error}`、`{tags_info}`、`{revoke_delay}`、`{feature}` 等占位符；运势发图结果提示 `fortune_image_submitted`、`fortune_image_failed` 使用 `{fortune}`。提示固定启用，旧 `messages` 与 `message_overrides` 不再影响输出。
+失败和拒绝类提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{min_count}`、`{max_count}`、`{error}`、`{tags_info}`、`{feature}`、`{fortune}` 等占位符。发送成功、刷新成功和自动撤回登记都不再追加文字提示；运势图发送失败时仍返回文字运势。这些文案固定在代码中，配置不提供覆盖入口；旧 `messages` 与 `message_overrides` 会在启动自愈时移除并记录日志。
 
 ## 今日运势
 

@@ -105,6 +105,7 @@ async def _route_regex_command(
     elif matched.kind == "fortune" and fortune_handler is not None:
         async for result in fortune_handler.fortune_command(event):
             yield result
+    event.stop_event()
 
 
 def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
