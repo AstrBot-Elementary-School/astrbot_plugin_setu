@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 import astrbot.api.message_components as Comp
+import pytest
 from astrbot_plugin_setu.src.application.setu import ImagePayload
 from astrbot_plugin_setu.src.infrastructure.astrbot.config import (
     clear_config,
@@ -24,8 +24,8 @@ from astrbot_plugin_setu.src.infrastructure.sending.send_strategies import (
     DirectSendStrategy,
     ForwardSendStrategy,
 )
-from astrbot_plugin_setu.src.shared.send_cache import clear_send_cache, init_send_cache
 from astrbot_plugin_setu.src.shared.config import SetuPluginConfig
+from astrbot_plugin_setu.src.shared.send_cache import clear_send_cache, init_send_cache
 
 
 def with_napcat_transport(config_dict: dict[str, Any], **values: Any) -> dict[str, Any]:
@@ -929,3 +929,139 @@ async def test_send_images_respects_send_failed_toggle(
     ]
 
     assert results == []
+
+
+@pytest.mark.asyncio
+async def test_r18_docx_missing_service_never_sends_images(
+    mock_event, sample_config_dict
+):
+    config = SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    sender = ImageSender(config)
+    sender._build_options = AsyncMock(
+        return_value=SendOptions(
+            send_mode="image",
+            use_html_card=False,
+            auto_revoke=False,
+            revoke_delay=30,
+            r18_docx_mode=True,
+        )
+    )
+    context = MagicMock()
+    context.send_message = AsyncMock(return_value={"message_id": "123"})
+    set_plugin_context(context)
+    payload = ImagePayload(
+        urls=(), raw_bytes=(b"image",), file_paths=(), r18=True, tags=()
+    )
+    results = [item async for item in sender.send_images(payload, mock_event)]
+    context.send_message.assert_not_called()
+    assert not any(
+        isinstance(item, dict) and item.get("send_success") for item in results
+    )
+    mock_event.plain_result.assert_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "outcome", ["success", "failed", "pending", "generation_failed", "read_failed"]
+)
+async def test_r18_docx_delivery_terminal_states(
+    tmp_path, mock_event, sample_config_dict, outcome
+):
+    from astrbot_plugin_setu.src.infrastructure.sending.docx_service import (
+        R18DocxService,
+    )
+    from astrbot_plugin_setu.src.infrastructure.sending.dto import SendAttemptResult
+
+    from tests.infrastructure.test_docx_service import image_bytes
+
+    service = R18DocxService(tmp_path)
+    if outcome == "generation_failed":
+        service.create_docx_with_images = MagicMock(side_effect=OSError("disk full"))
+    sender = ImageSender(
+        SetuPluginConfig(**without_delivery_notices(sample_config_dict)),
+        docx_service=service,
+    )
+    sender._build_options = AsyncMock(
+        return_value=SendOptions(
+            send_mode="image",
+            use_html_card=False,
+            auto_revoke=True,
+            revoke_delay=30,
+            r18_docx_mode=True,
+        )
+    )
+    sender._schedule_revoke_for_result = AsyncMock(return_value=1)
+    sender._send_post_delivery_messages = AsyncMock()
+    set_plugin_context(MagicMock())
+    results_by_outcome = {
+        "success": SendAttemptResult.success("123"),
+        "failed": SendAttemptResult.failed("rejected"),
+        "pending": SendAttemptResult.pending_delivery("timeout"),
+    }
+    send = AsyncMock(return_value=results_by_outcome.get(outcome))
+    payload = ImagePayload(
+        urls=(),
+        raw_bytes=(image_bytes("PNG"),),
+        file_paths=(),
+        items=(tmp_path / "missing.png",) if outcome == "read_failed" else (),
+        r18=True,
+        tags=(),
+    )
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(DirectSendStrategy, "send_with_status", send)
+        results = [item async for item in sender.send_images(payload, mock_event)]
+    if outcome in {"generation_failed", "read_failed"}:
+        send.assert_not_called()
+    else:
+        send.assert_awaited_once()
+        chain = send.call_args.args[1]
+        assert len(chain) == 1 and isinstance(chain[0], Comp.File)
+        from docx import Document
+
+        assert len(Document(chain[0].file).inline_shapes) == 1
+    statuses = [item for item in results if isinstance(item, dict)]
+    if outcome in {"success", "pending"}:
+        assert statuses == [
+            {
+                "send_success": True,
+                "image_count": 1,
+                **({"send_pending": True} if outcome == "pending" else {}),
+            }
+        ]
+        assert sender._schedule_revoke_for_result.call_args.args[1].message_ids == (
+            ("123",) if outcome == "success" else ()
+        )
+    else:
+        assert statuses == []
+        mock_event.plain_result.assert_called()
+        sender._schedule_revoke_for_result.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("r18,docx_enabled", [(False, True), (True, False)])
+async def test_non_docx_requests_keep_image_delivery(
+    mock_event, sample_config_dict, r18, docx_enabled
+):
+    context = MagicMock()
+    context.send_message = AsyncMock(return_value={"message_id": "123"})
+    set_plugin_context(context)
+    sender = ImageSender(
+        SetuPluginConfig(**without_delivery_notices(sample_config_dict))
+    )
+    sender._build_options = AsyncMock(
+        return_value=SendOptions(
+            send_mode="image",
+            use_html_card=False,
+            auto_revoke=False,
+            revoke_delay=30,
+            r18_docx_mode=docx_enabled,
+        )
+    )
+    payload = ImagePayload(
+        urls=(), raw_bytes=(b"image",), file_paths=(), r18=r18, tags=()
+    )
+    results = [item async for item in sender.send_images(payload, mock_event)]
+    assert results == [{"send_success": True, "image_count": 1}]
+    assert isinstance(
+        context.send_message.call_args.args[1].result_chain[0], Comp.Image
+    )

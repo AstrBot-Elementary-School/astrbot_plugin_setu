@@ -39,6 +39,7 @@
 - 色图与随机本子都必须使用 `application/setu/tag_resolution.py` 解析标签，保持分隔符和别名映射语义一致。
 - `delivery.auto_revoke_targets` 以单一列表选择色图、今日运势和本子是否进入自动清理；三者共用 `auto_revoke_delay`，本子合并转发必须在发送时取得并立即持久化 `message_id`，避免异步上传可见性导致清理状态丢失。
 - 其他领域值、平台行为和配置边界不要写进本文件，放到 `docs/project/` 或 `docs/dev/`。
+- R18 DOCX 开启时，由注入的封装服务按顺序写入全部图片并发送普通 File；生成或发送失败使用配置提示并终止，文件保留发送缓存 TTL 后清理。
 
 ## 文档纪律
 

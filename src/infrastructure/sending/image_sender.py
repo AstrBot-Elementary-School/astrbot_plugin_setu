@@ -20,6 +20,7 @@ from ...shared.send_cache import get_send_cache, schedule_send_cache_cleanup
 from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
 from ..persistence import get_session_config_repo
+from .docx_service import R18DocxService
 from .dto import SendAttemptResult, SendOptions
 from .image_compressor import compress_image
 from .napcat_stream import upload_file_stream
@@ -40,7 +41,14 @@ logger = get_logger()
 class ImageSender:
     """Send images with send-mode, stream-upload, and fallback strategies."""
 
-    def __init__(self, config: Any = None, log: Any = None) -> None:
+    def __init__(
+        self,
+        config: Any = None,
+        log: Any = None,
+        *,
+        docx_service: R18DocxService | None = None,
+    ) -> None:
+        self._docx_service = docx_service
         self._user_config = config
         self._log = log or logger
         self._html_renderer: Any = None
@@ -156,17 +164,24 @@ class ImageSender:
             return
 
         if payload.r18 and options.r18_docx_mode:
-            docx_images = await self._read_image_bytes(items)
-            docx_yielded = False
-            if docx_images:
+            try:
+                docx_images = await self._read_image_bytes(items)
+                if len(docx_images) != len(items):
+                    raise ValueError("Failed to read all DOCX images")
                 async for result in self._send_r18_docx(
                     event, docx_images, payload.tags, options
                 ):
-                    docx_yielded = True
                     yield result
-            if docx_yielded:
-                schedule_send_cache_cleanup()
-                return
+            except Exception:  # noqa: BLE001 - 封装/平台边界统一报告并终止 R18 分支
+                self._log.exception("[send] R18 DOCX generation or delivery failed")
+                message = self._resolve_message("r18_docx_failed")
+                if message:
+                    yield event.plain_result(message)
+            finally:
+                cache = get_send_cache()
+                if cache is not None:
+                    schedule_send_cache_cleanup(cache.ttl_seconds + 1)
+            return
 
         original_chain = self._build_image_chain(items)
         chain = original_chain
@@ -514,43 +529,37 @@ class ImageSender:
         tags: tuple[str, ...],
         options: SendOptions,
     ) -> AsyncGenerator[Any, None]:
-        """Send R18 images packaged as DOCX when a docx service is available."""
-        docx_service = getattr(self, "_docx_service", None)
-        if not docx_service:
-            self._log.debug("[send] docx service unavailable, fallback to image send")
+        """Generate and send a DOCX without falling back to images."""
+        if self._docx_service is None:
+            raise RuntimeError("R18 DOCX service is not initialized")
+        docx_path = await asyncio.to_thread(
+            self._docx_service.create_docx_with_images, list(images), list(tags)
+        )
+        send_result = await DirectSendStrategy(self._context).send_with_status(
+            event,
+            [Comp.File(file=str(docx_path), name=docx_path.name)],
+            options.auto_revoke,
+        )
+        if not send_result.accepted:
+            fail_message = self._resolve_message("r18_docx_failed")
+            if fail_message:
+                yield event.plain_result(fail_message)
             return
 
-        docx_path = docx_service.create_docx_with_images(list(images), tags=list(tags))
-        if docx_path:
-            send_result = await DirectSendStrategy(self._context).send_with_status(
-                event,
-                [Comp.File(file=str(docx_path), name=docx_path.name)],
-                options.auto_revoke,
-            )
-            if not send_result.accepted:
-                fail_message = self._send_failed_message()
-                if fail_message:
-                    yield event.plain_result(fail_message)
-                return
-
-            scheduled_count = await self._schedule_revoke_for_result(
-                event, send_result, options
-            )
-            await self._send_post_delivery_messages(
-                event, len(images), options, True, scheduled_count
-            )
-            if send_result.pending:
-                yield {
-                    "send_success": True,
-                    "image_count": len(images),
-                    "send_pending": True,
-                }
-            else:
-                yield {"send_success": True, "image_count": len(images)}
+        scheduled_count = await self._schedule_revoke_for_result(
+            event, send_result, options
+        )
+        await self._send_post_delivery_messages(
+            event, len(images), options, True, scheduled_count
+        )
+        if send_result.pending:
+            yield {
+                "send_success": True,
+                "image_count": len(images),
+                "send_pending": True,
+            }
         else:
-            docx_failed_message = self._resolve_message("r18_docx_failed")
-            if docx_failed_message:
-                yield event.plain_result(docx_failed_message)
+            yield {"send_success": True, "image_count": len(images)}
 
     async def _try_html_card_fallback(
         self,

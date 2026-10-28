@@ -24,9 +24,9 @@ from ....domain.access_control.service import AccessControlService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
 from ... import get_access_control_repo, get_provider
+from ...doujinshi import DoujinshiService
 from ...persistence import get_session_config_repo
 from ...providers import init_provider_from_config
-from ...doujinshi import DoujinshiService
 from ...sending import (
     DirectSendStrategy,
     build_doujinshi_file_chain,
@@ -117,6 +117,9 @@ class SetuCommandHandler:
         plugin_context: object | None = None,
         revoke_scheduler: RecoverableRevokeScheduler | None = None,
     ) -> None:
+        from ...sending.docx_service import R18DocxService
+
+        self._docx_service = R18DocxService(data_dir) if data_dir is not None else None
         self._doujinshi_service = (
             DoujinshiService(data_dir) if data_dir is not None else None
         )
@@ -410,9 +413,17 @@ class SetuCommandHandler:
             payload = await provider.fetch_and_download(request)
             from ...sending import ImageSender
 
-            sender = ImageSender(config, logger)
-            async for _ in sender.send_images(payload, event):
-                pass
+            sender = ImageSender(config, logger, docx_service=self._docx_service)
+            accepted = False
+            async for result in sender.send_images(payload, event):
+                if isinstance(result, dict):
+                    accepted = accepted or bool(result.get("send_success"))
+                else:
+                    await (self._plugin_context or get_plugin_context()).send_message(
+                        event.unified_msg_origin, result
+                    )
+            if not accepted:
+                return self._message("send_failed")
             return f"Successfully fetched {payload.count} images"
         except Exception:
             return self._message("fetch_failed")
@@ -467,7 +478,7 @@ class SetuCommandHandler:
 
         from ...sending import ImageSender
 
-        sender = ImageSender(config, logger)
+        sender = ImageSender(config, logger, docx_service=self._docx_service)
         async for send_result in sender.send_images(payload, event):
             yield send_result
 

@@ -145,7 +145,9 @@ class DiskSendCache:
                     path.unlink(missing_ok=True)
                     removed += 1
                     continue
-                files.append(path)
+                # DOCX 文件保留完整 TTL，避免异步上传期间被容量淘汰。
+                if path.suffix != ".docx":
+                    files.append(path)
 
             files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             for path in files[self.max_items :]:
