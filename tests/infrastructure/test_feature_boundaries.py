@@ -102,7 +102,7 @@ async def test_disabled_features_do_not_touch_services(
     tools = MagicMock()
     monkeypatch.setattr(setu, "llm_tools", tools)
     monkeypatch.setattr(fortune, "llm_tools", tools)
-    setu.register_llm_tools()
+    setu.register_llm_tools(image_handler)
     fortune.register_llm_tools()
     tools.add_func.assert_not_called()
 

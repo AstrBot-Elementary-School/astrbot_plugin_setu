@@ -65,3 +65,15 @@
 - [ ] OneBot 图片、今日运势和本子普通文件消息均使用 `auto_revoke_delay` 写入统一持久化消息任务；本子通过原始 `send_group_msg` 取得 `message_id` 并在到期后调用 `delete_msg`，旧字段与旧队列均可迁移；删除任务连续失败三次后会移除持久化记录。
 - [ ] `tests/conftest.py` 固定的 `ASTRBOT_ROOT` 仍能阻止插件目录污染。
 - [ ] 访问控制黑白名单互斥逻辑正常。
+
+## R18 DOCX 回归
+
+`tests/infrastructure/test_docx_service.py` 使用普通 JPEG、PNG、WebP 验证有效
+DOCX 的图片数量、顺序、页面尺寸、并发唯一文件名、保存失败清理和缓存关闭后的回收。
+`test_image_sender.py` 覆盖服务缺失、读取/生成失败、文件发送失败及 pending，
+并检查普通 File 和撤回消息 ID 传递。按基础命令运行 `tests/infrastructure/ -q`。
+
+集成验收使用受控 AstrBot + NapCat 会话：设置 `setu.content_mode=r18`、
+`setu.r18_docx=true`，分别请求一张和多张测试图片，下载并打开 DOCX；
+启用色图自动撤回后检查消息 ID 与撤回记录；关闭 DOCX 再检查普通图片发送。
+该客户端验收须在可用测试会话执行，单测使用模拟平台结果。

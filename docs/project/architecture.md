@@ -41,6 +41,16 @@ tests/             # 单元与集成测试
 6. 缓存命中时复用本地文件，降低内存压力
 7. 自动撤回内容含 `setu`、命中撤回范围且拿到 `message_id` 时，统一撤回调度器将任务写入 `revoke_tasks.json`，重启后按原到期时间调用 OneBot `delete_msg`
 
+### R18 DOCX 文件发送
+
+`SetuCommandHandler` 使用已注入的插件数据目录创建 `R18DocxService`，
+命令与 LLM 注册共用已初始化的 handler，两处 `ImageSender` 入口共用此服务。R18 DOCX 分支通过 `asyncio.to_thread()`
+读取并封装全部图片，`DirectSendStrategy` 发送普通 `Comp.File`，
+WebP 转换保留透明通道；成功、失败及 pending 沿用发送策略状态；取得的消息 ID 进入既有撤回调度。
+生成或发送失败记录完整异常，并通过内置 `r18_docx_failed` 提示后结束分支。
+UUID 文件名隔离并发请求，保存失败删除半成品。文件位于发送缓存目录，
+保留完整 TTL（免容量淘汰），发送后安排 TTL 到期清理；缓存关闭仍可清理 DOCX。
+
 ### 2. Fortune 运势生成
 
 1. 运势启用时，命令、短语或 LLM tool 触发 → `FortuneCommandHandler`

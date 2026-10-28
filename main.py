@@ -211,7 +211,7 @@ class SetuPlugin(Star):
 
         try:
             if cfg.setu_general.llm_tools_enabled:
-                register_setu_llm_tools()
+                register_setu_llm_tools(_setu_handler)
                 if cfg.fortune.enabled:
                     register_fortune_llm_tools()
         except Exception as e:

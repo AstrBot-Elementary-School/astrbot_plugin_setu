@@ -66,7 +66,7 @@ async def test_initialize_uses_plugin_config_not_context_config(
     monkeypatch.setattr("astrbot_plugin_setu.main.init_send_cache", AsyncMock())
     monkeypatch.setattr("astrbot_plugin_setu.main.init_revoke_scheduler", AsyncMock())
     monkeypatch.setattr(
-        "astrbot_plugin_setu.main.register_setu_llm_tools", lambda: None
+        "astrbot_plugin_setu.main.register_setu_llm_tools", lambda _handler: None
     )
     monkeypatch.setattr(
         "astrbot_plugin_setu.main.register_fortune_llm_tools", lambda: None

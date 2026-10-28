@@ -53,6 +53,15 @@
 | `auto_revoke_delay` | 整数 | 已启用内容共用自动清理延迟（秒） | ≥0，`0` 全部关闭 | `30` |
 | `r18_docx_mode` | 布尔值 | R18 是否使用 Docx 封装 | `true` / `false` | `true` |
 
+R18 请求开启 `delivery.r18_docx_mode`（会话配置为 `setu.r18_docx`）后，
+全部图片按获取顺序封装为一个 DOCX，通过普通文件发送。JPEG、PNG 直接嵌入，
+WebP 等格式转换为 PNG；图片按页面可用范围等比缩放。
+生成或发送确认失败使用内置 `r18_docx_failed` 提示并结束当前发送，
+确认超时保留 pending 状态，避免重复发送。SFW 和关闭 DOCX 时沿用图片发送。
+自动撤回仍受 `auto_revoke_targets`、范围和延时控制。
+文件在插件数据目录的 `send_cache/` 保留缓存 TTL 后清理，即使图片缓存关闭仍执行清理；
+DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
+
 ### HTML 卡片发送
 
 | 策略 | 说明 |
