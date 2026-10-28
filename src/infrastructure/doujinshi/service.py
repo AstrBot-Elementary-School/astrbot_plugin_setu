@@ -210,7 +210,7 @@ class DoujinshiService:
     ) -> None:
         for page_number, page_url in enumerate(page_urls, start=1):
             try:
-                response = await client.get(page_url)
+                response = await client.get(page_url, headers=self.REQUEST_HEADERS)
                 response.raise_for_status()
                 await asyncio.to_thread(
                     self._append_pdf_page,
@@ -237,7 +237,7 @@ class DoujinshiService:
         ) as archive:
             for page_number, page_url in enumerate(page_urls, start=1):
                 try:
-                    response = await client.get(page_url)
+                    response = await client.get(page_url, headers=self.REQUEST_HEADERS)
                     response.raise_for_status()
                     member_name = self._archive_member_name(
                         page_number,
