@@ -93,3 +93,9 @@
 - forward 帧 padding 用真实 `send_group_forward_msg` 结构承载，区分 `1009`（传输层丢帧）与应用层 retcode（帧已到达）。
 
 更多 sender 结构见 `architecture.md` 的「核心运行链路」。
+
+## Base64 图片与 HTML 回退
+
+运势渲染或 `Image.fromBytes()` 生成的 `base64://` 图片会直接解码用于体积估算、压缩和 HTML 回退。HTTP/HTTPS 等非本地引用跳过本地文件检查；普通路径和本地 `file://` URI 继续支持，URI 中的转义字符按路径解码。
+
+HTML 回退默认使用 AstrBot 配置的 t2i 服务，将原图内嵌为卡片重新渲染，沿用 `html_card_padding`。每张图片单独渲染，`html_card_gap` 不参与单图布局。无效 Base64 和本地读取失败会记录具体异常；无可用图片时沿用发送失败反馈。

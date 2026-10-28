@@ -7,7 +7,6 @@ from collections.abc import AsyncGenerator
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import unquote, urlparse
 
 import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent
@@ -21,7 +20,9 @@ from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
 from .docx_service import R18DocxService
 from .dto import SendAttemptResult, SendOptions
+from .html_card_renderer import HtmlCardRenderer
 from .image_compressor import compress_image
+from .image_sources import local_image_path, read_image_bytes
 from .napcat_stream import upload_file_stream
 from .platform_capabilities import is_onebot_like_platform, supports_forward_messages
 from .revoke_scheduler import schedule_revoke
@@ -52,7 +53,7 @@ class ImageSender:
         self._content_type = content_type
         self._user_config = config
         self._log = log or logger
-        self._html_renderer: Any = None
+        self._html_renderer: Any = HtmlCardRenderer()
         self._forward_supported_cache: dict[str, bool] = {}
 
     @property
@@ -390,20 +391,7 @@ class ImageSender:
 
     async def _read_comp_bytes(self, comp: Comp.Image) -> bytes | None:
         """Extract bytes from a Comp.Image, returning None if not file/base64."""
-        file_path = self._local_file_path(comp)
-        if file_path:
-            try:
-                return await asyncio.to_thread(file_path.read_bytes)
-            except OSError:
-                return None
-        if comp.file and comp.file.startswith("base64://"):
-            import base64
-
-            try:
-                return base64.b64decode(comp.file[9:])
-            except Exception:
-                return None
-        return None
+        return await read_image_bytes(comp)
 
     async def _estimate_chain_sizes(self, chain: list[Comp.Image]) -> list[int]:
         """Estimate base64 byte size for each image in chain."""
@@ -756,32 +744,16 @@ class ImageSender:
         return any(self._local_file_path(comp) is not None for comp in chain)
 
     def _local_file_path(self, comp: Comp.Image) -> Path | None:
-        path_value = getattr(comp, "path", None)
-        if path_value:
-            path = Path(str(path_value))
-            if path.exists():
-                return path
-
-        file_value = getattr(comp, "file", None)
-        if not isinstance(file_value, str) or not file_value:
-            return None
-        if file_value.startswith("file://"):
-            parsed = urlparse(file_value)
-            if parsed.scheme != "file":
-                return None
-            if parsed.netloc and parsed.netloc != "localhost":
-                return None
-            path = Path(unquote(parsed.path))
-        else:
-            path = Path(file_value)
-        return path if path.exists() else None
+        return local_image_path(getattr(comp, "path", None)) or local_image_path(
+            getattr(comp, "file", None)
+        )
 
     def _image_from_ref(self, ref: str | Path) -> Comp.Image:
         text = str(ref)
         if text.startswith("file:///"):
             return Comp.Image(file=text)
-        path = Path(text)
-        if path.exists():
+        path = local_image_path(ref)
+        if path is not None:
             return Comp.Image.fromFileSystem(str(path))
         return Comp.Image(file=text)
 

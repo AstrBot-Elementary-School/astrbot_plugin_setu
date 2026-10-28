@@ -9,7 +9,7 @@
 - 理解模块关系、启动流程和数据归属：[架构](docs/project/architecture.md)、[项目概览](docs/project/overview.md)。
 - 准备本地环境或运行检查：[环境搭建](docs/dev/setup.md)、[测试](docs/dev/testing.md)。
 - 修改配置兼容或迁移流程：[维护说明](docs/dev/maintenance.md#配置与迁移)、[升级与恢复](docs/usage/configuration.md#升级与恢复)。
-- 排查 OneBot/NapCat 多图发送：[传输上限与诊断](docs/project/sending-limits.md)。
+- 排查 OneBot/NapCat 多图发送、Base64 图片和 t2i 卡片回退：[传输上限与诊断](docs/project/sending-limits.md)。
 - 提交贡献或同步文档：[贡献说明](docs/dev/contributing.md)、[工程协作](docs/dev/engineering-principles.md)。
 
 ## 按模块找代码

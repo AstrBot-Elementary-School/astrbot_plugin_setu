@@ -853,9 +853,13 @@ async def test_send_images_ignores_legacy_send_failed_toggle(
         tags=(),
     )
 
-    results = [
-        item async for item in ImageSender(config).send_images(payload, mock_event)
-    ]
+    sender = ImageSender(config)
+    sender.set_html_renderer(
+        MagicMock(
+            render_single_image=AsyncMock(side_effect=RuntimeError("t2i unavailable"))
+        )
+    )
+    results = [item async for item in sender.send_images(payload, mock_event)]
 
     assert len(results) == 1
     mock_event.plain_result.assert_called_with("图片发送失败，请稍后再试。")
