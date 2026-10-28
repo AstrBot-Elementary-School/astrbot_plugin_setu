@@ -25,7 +25,7 @@ class MessagesConfig:
         "fortune_group_only": "此命令仅支持群聊",
         "fortune_image_failed": "运势图未能发送，以下为文字运势：\n{fortune}",
         "fortune_get_failed": "获取运势失败: {error}",
-        "fortune_refresh_done": "今日运势已刷新，发送 /今日运势 查看。",
+        "fortune_refresh_done": "已刷新今日运势",
         "fortune_refresh_failed": "刷新运势失败: {error}",
         "fortune_refresh_group_failed": "刷新群运势失败: {error}",
         "fortune_refresh_all_failed": "刷新全局运势失败: {error}",
