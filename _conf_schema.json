@@ -252,7 +252,7 @@
       "html_card_strategy": {
         "type": "string",
         "description": "图片卡片发送",
-        "hint": "fallback：普通发送失败后尝试卡片；never：不用卡片；always：始终用卡片。",
+        "hint": "fallback：普通发送失败后尝试卡片；never：不用卡片；always：始终用卡片。卡片渲染会将完整图片上传到 AstrBot 配置的 t2i 服务；使用远程服务时，图片将传至该服务。若不希望上传，请选 never。",
         "default": null,
         "options": [
           "never",

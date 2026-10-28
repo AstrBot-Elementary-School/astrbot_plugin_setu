@@ -8,7 +8,6 @@ Defines the strategy interface and implementations for different send modes:
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -20,6 +19,7 @@ from astrbot.api.event import AstrMessageEvent
 
 from ...shared import get_logger
 from .dto import SendAttemptResult
+from .image_sources import read_image_bytes
 from .platform_capabilities import is_onebot_like_platform
 
 logger = get_logger()
@@ -596,26 +596,9 @@ class HtmlCardFallbackStrategy(SendStrategy):
         for comp in chain:
             if not isinstance(comp, Comp.Image):
                 continue
-            if isinstance(comp.file, bytes):
-                images.append(comp.file)
-                continue
-
-            path_value = getattr(comp, "path", None) or getattr(comp, "file", None)
-            if isinstance(path_value, str):
-                candidate = (
-                    Path(path_value[8:])
-                    if path_value.startswith("file:///")
-                    else Path(path_value)
-                )
-                if candidate.exists():
-                    try:
-                        data = await asyncio.to_thread(candidate.read_bytes)
-                        images.append(data)
-                    except OSError:
-                        logger.warning(
-                            "[html_fallback] failed to read image path=%s",
-                            candidate,
-                        )
+            data = await read_image_bytes(comp)
+            if data is not None:
+                images.append(data)
 
         if not images:
             logger.warning("[html_fallback] no images available after materialization")
@@ -624,11 +607,15 @@ class HtmlCardFallbackStrategy(SendStrategy):
         rendered_images = []
         for i, img_data in enumerate(images):
             logger.debug("[html_fallback] Rendering image %d/%d", i + 1, len(images))
-            rendered = await self._renderer.render_single_image(
-                context=self._context,
-                image=img_data,
-                style_options=self._style_options,
-            )
+            try:
+                rendered = await self._renderer.render_single_image(
+                    context=self._context,
+                    image=img_data,
+                    style_options=self._style_options,
+                )
+            except Exception as exc:
+                logger.exception("[html_fallback] rendering failed")
+                return SendAttemptResult.failed(str(exc))
             if rendered:
                 rendered_images.append(rendered)
             else:

@@ -41,6 +41,8 @@ tests/             # 单元与集成测试
 6. 缓存命中时复用本地文件，降低内存压力
 7. 自动撤回内容含 `setu`、命中撤回范围且拿到 `message_id` 时，统一撤回调度器将任务写入 `revoke_tasks.json`，重启后按原到期时间调用 OneBot `delete_msg`
 
+HTML 卡片默认通过 AstrBot 配置的 t2i 服务渲染。体积估算、压缩和卡片回退共用图片引用解析，详见[Base64 图片与 HTML 回退](sending-limits.md#base64-图片与-html-回退)。
+
 ### R18 DOCX 文件发送
 
 `SetuCommandHandler` 使用已注入的插件数据目录创建 `R18DocxService`，

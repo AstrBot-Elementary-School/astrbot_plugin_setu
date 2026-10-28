@@ -70,6 +70,8 @@ DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
 | `fallback`（默认） | 确认发送失败时自动降级为 HTML 卡片 |
 | `always` | 总是使用 HTML 卡片包装发送 |
 
+卡片渲染会将完整图片内嵌到 HTML 模板，发送至 AstrBot 配置的 t2i 服务。使用远程 t2i 时，该服务会收到图片内容；请确认服务可信且适合处理这些图片。若希望图片只走原有平台发送链路，将 `delivery.html_card_strategy` 设为 `never`。
+
 发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时，插件会把结果标记为“可能仍在送达”，不会立刻触发 NapCat 流式或 HTML 卡片 fallback，避免原图稍后送达时又重复发送降级图片。明确抛出的发送异常仍会进入原有 fallback 链路。
 
 ### 自动撤回内容与范围
