@@ -187,6 +187,17 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 命令与 LLM 工具共用运势图片发送流程，支持现有压缩与平台传输设置。运势卡片始终直发，不使用色图的合并转发或 R18 Word 包装；是否撤回只由 `auto_revoke_targets` 中的 `fortune` 决定。渲染或图片发送失败时提供文字运势。
 
+`fortune.card_theme` 控制运势卡片的前端视觉模板（默认 `endfield`）：
+
+| 值 | 风格与模板 |
+|----|------------|
+| `endfield`（默认） | 《明日方舟：终末地》工业档案与协议遥测风格（`templates/fortune_endfield.html`） |
+| `blue_archive` | 《碧蓝档案》什亭之匣与 MomoTalk 募集档案风格（`templates/fortune_blue_archive.html`） |
+| `random` | 每次渲染时在 `endfield` 与 `blue_archive` 两套风格间随机切换 |
+| `default` | 经典深色赛博卡片（`templates/fortune.html`） |
+
+卡片渲染前先解析所选模板的占位符，按需准备用户名、运势字段、背景图片和字体；模板未引用背景图片时跳过下载。普通卡片命令在图片发送失败后获取文字回退所需的运势；LLM 工具继续返回文字运势。
+
 背景图片使用“图片获取”中选择的图片来源，可单独设置分级和标签。关闭运势时，其余选项隐藏。
 
 关闭 `fortune.enabled` 会停用获取、刷新、运势工具和后台预生成，不初始化运势数据库或渲染器；已有运势和缓存保留，持久化撤回任务照常恢复。

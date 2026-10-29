@@ -329,6 +329,21 @@
         "description": "启用今日运势",
         "default": true
       },
+      "card_theme": {
+        "type": "string",
+        "description": "卡片视觉风格",
+        "hint": "endfield：明日方舟：终末地；blue_archive：碧蓝档案；random：两套新风格随机切换；default：经典赛博卡片。",
+        "default": "endfield",
+        "options": [
+          "endfield",
+          "blue_archive",
+          "random",
+          "default"
+        ],
+        "condition": {
+          "enabled": true
+        }
+      },
       "content_mode": {
         "type": "string",
         "description": "背景图片分级",

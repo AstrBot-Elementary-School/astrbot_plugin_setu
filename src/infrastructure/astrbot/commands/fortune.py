@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import random
 from collections.abc import AsyncGenerator
 from typing import Any
 
-import astrbot.api.message_components as Comp
-from astrbot.api.event import AstrMessageEvent
-from astrbot.core.provider.register import llm_tools
+import astrbot.api.message_components as Comp  # type: ignore[import-untyped,import-not-found]
+from astrbot.api.event import (  # type: ignore[import-untyped,import-not-found]
+    AstrMessageEvent,
+)
+from astrbot.core.provider.register import (  # type: ignore[import-untyped,import-not-found]
+    llm_tools,
+)
 
 from ....application.session_config import SessionConfigService
 from ....application.setu import ImagePayload
@@ -67,14 +72,16 @@ class FortuneCommandHandler:
                 yield result
             return
 
-        request = self._build_fortune_request(event)
+        request = self._build_fortune_request(event, include_username=False)
 
         try:
             repo = get_fortune_repo()
             service = FortuneService(repository=repo)
-            result = await service.get_or_create_fortune(request)
-            if await self._send_fortune_image(event, result, service, config):
+            if await self._send_fortune_image(event, request, service, config):
                 return
+            result = await service.get_or_create_fortune(
+                self._build_fortune_request(event)
+            )
             text = self._message(
                 "fortune_image_failed", fortune=self._format_fortune(result)
             )
@@ -91,13 +98,13 @@ class FortuneCommandHandler:
     async def _send_fortune_image(
         self,
         event: AstrMessageEvent,
-        record: FortuneRecord,
+        record: FortuneRecord | FortuneGenerationRequest,
         service: FortuneService,
         config: Any,
     ) -> bool:
         """Share image delivery across commands and tools; uncertain receipts must not trigger duplicates."""
         try:
-            image = await self._render_fortune_image(record, service)
+            image = await self._render_fortune_image(record, service, event=event)
             if not image:
                 return False
             payload = ImagePayload(urls=(), raw_bytes=(image,), r18=False, tags=())
@@ -400,6 +407,8 @@ class FortuneCommandHandler:
 
     async def _check_self_refresh(self, event: AstrMessageEvent) -> tuple[bool, str]:
         config = get_config()
+        if config is None:
+            return False, self._message("config_not_loaded")
         allowed, message = await self._check_access(event, config)
         if not allowed:
             return allowed, message
@@ -415,14 +424,17 @@ class FortuneCommandHandler:
         return allowed, "" if allowed else self._message("access_denied")
 
     def _build_fortune_request(
-        self, event: AstrMessageEvent
+        self, event: AstrMessageEvent, *, include_username: bool = True
     ) -> FortuneGenerationRequest:
         """Build a framework-free fortune generation request from an AstrBot event."""
         user_id = str(event.get_sender_id())
         username = user_id
-        message_obj = getattr(event, "message_obj", None)
-        sender = getattr(message_obj, "sender", None)
-        for attr in ("nickname", "name", "user_name"):
+        sender = (
+            getattr(getattr(event, "message_obj", None), "sender", None)
+            if include_username
+            else None
+        )
+        for attr in ("nickname", "name", "user_name") if include_username else ():
             value = getattr(sender, attr, None)
             if value:
                 username = str(value)
@@ -451,47 +463,64 @@ class FortuneCommandHandler:
         return event.plain_result(text)
 
     async def _render_fortune_image(
-        self, record: FortuneRecord, service: FortuneService
+        self,
+        record: FortuneRecord | FortuneGenerationRequest,
+        service: FortuneService,
+        *,
+        event: AstrMessageEvent | None = None,
     ) -> bytes | None:
-        """Render fortune to image, fallback to None when unavailable."""
+        """Resolve the template before fetching its data dependencies."""
         cached = await service.get_cached_image(record.user_id, record.date_str)
         if cached:
             return cached
 
-        bg_bytes, img_url = await self._get_fortune_background_image(record.session_id)
-        if not bg_bytes:
-            return None
-
-        image_base64 = base64.b64encode(bg_bytes).decode("ascii")
-        fortune_dict = {
-            "username": record.username,
-            "date_str": record.date_str,
-            "title": record.title,
-            "star_count": record.star_count,
-            "max_stars": record.max_stars,
-            "description": record.description,
-            "extra_message": record.extra_message,
-            "theme_color": record.theme_color,
+        card_theme = get_config().fortune.card_theme.value
+        if self._renderer is None:
+            self._renderer = FortuneRenderer(card_theme=card_theme)
+        template = self._renderer._get_template(card_theme)
+        variables = self._renderer.template_variables(template)
+        fortune_fields = {
+            "title",
+            "stars_display",
+            "description",
+            "extra_message",
+            "theme_color",
         }
-        try:
-            if self._renderer is None:
-                self._renderer = FortuneRenderer()
-            image_bytes = await self._renderer.render_to_image(
-                fortune_dict, image_base64=image_base64
+        if isinstance(record, FortuneGenerationRequest):
+            if "username" in variables:
+                record = self._build_fortune_request(event)
+            if variables & fortune_fields:
+                record = await service.get_or_create_fortune(record)
+
+        image_base64 = None
+        img_url = None
+        if "image_base64" in variables:
+            bg_bytes, img_url = await self._get_fortune_background_image(
+                record.session_id
             )
-            if image_bytes:
-                await service.update_image_cache(record, image_bytes, img_url)
-            return image_bytes
-        except Exception as exc:
-            logger.warning("[fortune] failed to render fortune image: %s", exc)
-            return None
+            if bg_bytes is None:
+                return None
+            image_base64 = base64.b64encode(bg_bytes).decode("ascii")
+
+        fortune_dict = {
+            name: getattr(record, name)
+            for name in variables - {"fonts_css", "image_base64", "stars_display"}
+        }
+        if "stars_display" in variables:
+            fortune_dict.update(
+                star_count=record.star_count, max_stars=record.max_stars
+            )
+        image_bytes = await self._renderer.render_to_image(
+            fortune_dict, image_base64=image_base64, template=template
+        )
+        if image_bytes is not None and isinstance(record, FortuneRecord):
+            await service.update_image_cache(record, image_bytes, img_url)
+        return image_bytes
 
     async def _get_fortune_background_image(
         self, session_id: str | None = None
     ) -> tuple[bytes | None, str | None]:
         config = get_config()
-        if not config or not config.fortune.enabled:
-            return None, None
         try:
             init_provider_from_config(config)
             provider = get_provider()
@@ -594,7 +623,5 @@ def unregister_llm_tools() -> None:
     ]
 
     for name in tool_names:
-        try:
+        with contextlib.suppress(AttributeError, RuntimeError):
             llm_tools.remove_func(name)
-        except (AttributeError, RuntimeError):
-            pass

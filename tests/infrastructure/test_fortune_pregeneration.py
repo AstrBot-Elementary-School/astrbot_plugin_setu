@@ -15,6 +15,9 @@ from astrbot_plugin_setu.src.infrastructure.astrbot.commands import (
 from astrbot_plugin_setu.src.infrastructure.astrbot.commands.fortune import (
     FortuneCommandHandler,
 )
+from astrbot_plugin_setu.src.infrastructure.astrbot.fortune_renderer import (
+    FortuneRenderer,
+)
 from astrbot_plugin_setu.src.infrastructure.persistence.sqlite_fortune_repository import (
     SQLiteFortuneRepo,
 )
@@ -110,7 +113,11 @@ def patch_runtime(monkeypatch, repo: MemoryFortuneRepo, access_repo=None) -> Non
         fortune_cmd,
         "get_config",
         lambda: SimpleNamespace(
-            fortune=SimpleNamespace(enabled=True, auto_refresh=True),
+            fortune=SimpleNamespace(
+                enabled=True,
+                auto_refresh=True,
+                card_theme=SimpleNamespace(value="endfield"),
+            ),
         ),
     )
     monkeypatch.setattr(fortune_cmd, "get_fortune_repo", lambda: repo)
@@ -145,7 +152,8 @@ async def test_pregenerate_active_fortune_images_continues_after_record_error(
 
     patch_runtime(monkeypatch, repo)
     monkeypatch.setattr(handler, "_get_fortune_background_image", fake_background_image)
-    handler._renderer = SimpleNamespace(render_to_image=fake_render_to_image)
+    handler._renderer = FortuneRenderer()
+    handler._renderer.render_to_image = fake_render_to_image
 
     cached_count = await handler.pregenerate_active_fortune_images()
 
@@ -214,7 +222,8 @@ async def test_pregenerate_active_fortune_images_filters_access_control(
 
     patch_runtime(monkeypatch, repo, access_repo)
     monkeypatch.setattr(handler, "_get_fortune_background_image", fake_background_image)
-    handler._renderer = SimpleNamespace(render_to_image=fake_render_to_image)
+    handler._renderer = FortuneRenderer()
+    handler._renderer.render_to_image = fake_render_to_image
 
     cached_count = await handler.pregenerate_active_fortune_images()
 
@@ -295,7 +304,8 @@ async def test_pregeneration_keeps_session_context(monkeypatch, tmp_path) -> Non
     async def render(*args, **kwargs):
         return b"card"
 
-    handler._renderer = SimpleNamespace(render_to_image=render)
+    handler._renderer = FortuneRenderer()
+    handler._renderer.render_to_image = render
     assert await handler.pregenerate_active_fortune_images() == 1
     assert requests[0].r18 is True and requests[0].tags == ()
     assert next(iter(repo.records.values())).session_id == session

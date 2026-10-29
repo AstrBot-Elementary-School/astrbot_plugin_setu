@@ -125,6 +125,15 @@ class HtmlCardStrategyStr(str, Enum):
     ALWAYS = "always"
 
 
+class FortuneCardThemeStr(str, Enum):
+    """Fortune card visual themes."""
+
+    ENDFIELD = "endfield"
+    BLUE_ARCHIVE = "blue_archive"
+    DEFAULT = "default"
+    RANDOM = "random"
+
+
 class AccessControlModeStr(str, Enum):
     """Access control modes."""
 
@@ -253,6 +262,7 @@ class FortuneConfig(BaseModel):
 
     show_advanced: bool = False
     enabled: bool = True
+    card_theme: FortuneCardThemeStr = FortuneCardThemeStr.ENDFIELD
     tags: str = ""
     content_mode: ContentModeStr = ContentModeStr.SFW
     allow_user_refresh: bool = False
@@ -650,7 +660,13 @@ class SetuPluginConfig(SessionOverridesConfig):
         r18: bool | str = "",
     ) -> str:
         """Format found message with placeholders."""
-        r18_text = "是" if r18 is True else "否" if r18 is False else r18
+        r18_text = (
+            "是"
+            if isinstance(r18, bool) and r18
+            else "否"
+            if isinstance(r18, bool)
+            else r18
+        )
         return (
             self.resolve_message(
                 "found",
