@@ -145,8 +145,12 @@ async def test_pregenerate_active_fortune_images_continues_after_record_error(
     async def fake_background_image(session_id=None) -> tuple[bytes, str]:
         return b"background", "https://example.com/bg.jpg"
 
+    calls = 0
+
     async def fake_render_to_image(fortune, *args, **kwargs) -> bytes:
-        if fortune["username"] == "坏数据":
+        nonlocal calls
+        calls += 1
+        if calls == 1:
             raise RuntimeError("boom")
         return b"rendered-card"
 

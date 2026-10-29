@@ -21,8 +21,9 @@ FORTUNE_THEME_TEMPLATES: dict[str, str] = {
     "default": "fortune.html",
     "endfield": "fortune_endfield.html",
     "blue_archive": "fortune_blue_archive.html",
+    "persona_5": "fortune_persona5.html",
 }
-RANDOM_THEME_POOL: tuple[str, ...] = ("endfield", "blue_archive")
+RANDOM_THEME_POOL: tuple[str, ...] = ("endfield", "blue_archive", "persona_5")
 
 
 class FortuneRenderer:
@@ -61,6 +62,7 @@ class FortuneRenderer:
             ("SpaceGrotesk", "SpaceGrotesk.woff2", "woff2"),
             ("Gilroy-ExtraBold", "Gilroy-ExtraBold.woff2", "woff2"),
             ("TVPS-Vain-Capital-2", "TVPS-Vain-Capital-2.ttf", "truetype"),
+            ("p5hatty", "p5hatty.woff2", "woff2"),
         ]
         css_parts = ["    /* Embedded fonts - auto-generated */"]
 

@@ -20,6 +20,7 @@ def test_user_text_is_escaped_in_local_and_t2i_templates():
     for card_theme, marker in (
         ("endfield", "endfield-dossier"),
         ("blue_archive", "ba-shittim-card"),
+        ("persona_5", "p5-fortune-card"),
         ("default", "kivotos-shard-card"),
     ):
         renderer = FortuneRenderer(card_theme=card_theme)
@@ -31,7 +32,8 @@ def test_user_text_is_escaped_in_local_and_t2i_templates():
             assert "<img src=x>" not in html
             assert "<script>alert(1)</script>" not in html
             assert "<iframe src=x>" not in html
-            assert "&lt;img src=x&gt;" in html
+            if "username" in data:
+                assert "&lt;img src=x&gt;" in html
             assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
             assert "&lt;iframe src=x&gt;&lt;/iframe&gt;" in html
             assert html.count('<span class="star-glyph">') == 3
@@ -51,4 +53,8 @@ def test_random_card_theme_selects_new_templates():
             "theme_color": "theme-gray",
         }
     )
-    assert ("endfield-dossier" in html) or ("ba-shittim-card" in html)
+    assert (
+        ("endfield-dossier" in html)
+        or ("ba-shittim-card" in html)
+        or ("p5-fortune-card" in html)
+    )

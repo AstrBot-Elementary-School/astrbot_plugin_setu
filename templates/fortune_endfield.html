@@ -278,30 +278,21 @@
     }
 
     .endmin-info {
-      padding: 5px 12px;
+      padding: 6px 14px;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      align-items: flex-end;
+      align-items: center;
       border-right: 2px solid var(--ef-ink);
     }
 
     .endmin-role {
-      font-family: var(--font-mono);
-      font-size: 8.5px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      white-space: nowrap;
-      color: var(--ef-ink-muted);
-    }
-
-    .endmin-name {
       font-family: var(--font-cn-bold);
-      font-size: 16px;
-      color: var(--ef-ink);
-      line-height: 1.2;
-      margin-top: 2px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
       white-space: nowrap;
+      color: var(--ef-ink);
     }
 
     .endmin-date-block {
@@ -336,9 +327,8 @@
       position: relative;
       z-index: 5;
       display: grid;
-      grid-template-columns: 52px 1fr;
+      grid-template-columns: 52px minmax(0, 1fr);
       border-bottom: 3px solid var(--ef-ink);
-      height: 760px;
       background: var(--ef-ink);
     }
 
@@ -400,221 +390,170 @@
       width: 55%;
     }
 
-    /* Right Hero Viewport */
+    /* ================= ENDFIELD FULL-BLEED OPTICAL VIEWPORT ================= */
     .hero-viewport {
       position: relative;
       width: 100%;
-      height: 100%;
       overflow: hidden;
-      background: #101114;
-    }
-
-    .viewport-backdrop-blur {
-      position: absolute;
-      inset: -32px;
-      width: calc(100% + 64px);
-      height: calc(100% + 64px);
-      object-fit: cover;
-      object-position: center top;
-      filter: blur(42px) brightness(0.45) saturate(140%);
-      opacity: 0.85;
-      z-index: 1;
+      background: var(--ef-paper-dim);
+      line-height: 0;
     }
 
     .viewport-art-img {
-      position: relative;
-      z-index: 2;
       width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center top;
+      height: auto;
       display: block;
+      position: relative;
+      z-index: 1;
     }
 
     .viewport-placeholder {
       position: relative;
-      z-index: 2;
+      z-index: 1;
       width: 100%;
-      height: 100%;
+      min-height: 560px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       gap: 12px;
       background:
-        repeating-linear-gradient(45deg, rgba(255,250,0,0.03) 0, rgba(255,250,0,0.03) 12px, transparent 12px, transparent 24px),
+        repeating-linear-gradient(-45deg, rgba(255, 250, 0, 0.04) 0, rgba(255, 250, 0, 0.04) 12px, transparent 12px, transparent 24px),
         radial-gradient(circle at center, #1F2229 0%, #0E0F12 100%);
       color: var(--sig-primary);
       font-family: var(--font-wide);
-      letter-spacing: 4px;
+      font-size: 14px;
+      line-height: 1.4;
+      letter-spacing: 3px;
     }
 
-    /* Viewport tactical overlays */
-    .viewport-shade {
+    /* Subtle scanline texture over artwork (no dark top/bottom vignettes) */
+    .viewport-optical-lens {
       position: absolute;
       inset: 0;
-      z-index: 3;
+      z-index: 2;
+      pointer-events: none;
       background:
-        linear-gradient(180deg, rgba(16, 17, 20, 0.38) 0%, transparent 14%, transparent 72%, rgba(16, 17, 20, 0.78) 100%);
-      pointer-events: none;
+        repeating-linear-gradient(
+          0deg,
+          rgba(255, 255, 255, 0.015) 0px,
+          rgba(255, 255, 255, 0.015) 1px,
+          transparent 1px,
+          transparent 4px
+        );
     }
 
-    /* Corner Crosshairs inside Viewport */
-    .vp-reticle {
+    /* Camera Viewfinder Corner Brackets & Crosshairs */
+    .art-camera-reticle {
       position: absolute;
-      z-index: 4;
-      width: 22px;
-      height: 22px;
-      border-color: var(--sig-primary);
-      border-style: solid;
+      inset: 0;
       pointer-events: none;
+      z-index: 3;
     }
-    .vp-tl { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
-    .vp-tr { top: 16px; right: 16px; border-width: 2px 2px 0 0; }
-    .vp-bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
-    .vp-br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
 
-    /* Top HUD Chips inside Viewport */
-    .vp-top-hud {
+    .reticle-corner {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--sig-primary);
+      opacity: 0.92;
+      filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.75));
+    }
+
+    .reticle-corner.tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+    .reticle-corner.tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+    .reticle-corner.bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
+    .reticle-corner.br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+    /* Floating Top HUD Overlay inside Artwork */
+    .vp-floating-hud {
       position: absolute;
       top: 16px;
-      left: 24px;
-      right: 24px;
-      z-index: 5;
+      left: 16px;
+      right: 16px;
+      z-index: 4;
       display: flex;
       justify-content: space-between;
       align-items: center;
       pointer-events: none;
+      line-height: 1;
     }
 
-    .hud-tag-chip {
-      background: rgba(20, 21, 23, 0.88);
-      border: 1.5px solid var(--sig-primary);
-      padding: 5px 12px;
+    .hud-rec-pill {
+      background: rgba(18, 20, 24, 0.84);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      border-left: 3.5px solid var(--sig-primary);
+      padding: 6px 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 1.3px;
+      color: #F4F3EE;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+
+    .hud-rec-pill .rec-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--sig-primary);
+      box-shadow: 0 0 6px var(--sig-primary);
+      flex-shrink: 0;
+    }
+
+    .hud-rec-pill .hud-sep {
+      color: var(--sig-primary);
+      opacity: 0.85;
+    }
+
+    .hud-lock-tag {
+      background: var(--sig-primary);
+      color: var(--sig-badge-fg);
+      padding: 6px 12px 6px 16px;
+      font-family: var(--font-wide);
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Bottom-Right Floating Watermark Tag inside Artwork */
+    .vp-bottom-watermark {
+      position: absolute;
+      right: 18px;
+      bottom: 16px;
+      z-index: 4;
+      pointer-events: none;
       display: flex;
       align-items: center;
       gap: 8px;
+      background: rgba(18, 20, 24, 0.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 4px 9px;
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 8.5px;
       font-weight: 700;
-      letter-spacing: 1.5px;
-      color: #FFFFFF;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    }
-
-    .hud-tag-chip .pulse-sq {
-      width: 8px;
-      height: 8px;
-      background: var(--sig-primary);
-      box-shadow: 0 0 8px var(--sig-primary);
-    }
-
-    .hud-coord-chip {
-      background: var(--sig-primary);
-      color: var(--sig-badge-fg);
-      padding: 5px 12px;
-      font-family: var(--font-wide);
-      font-size: 11px;
-      letter-spacing: 1.8px;
-      clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%);
-      padding-left: 18px;
-    }
-
-    /* Bottom-Left Compact Single-Row Tactical Tag */
-    .vp-fortune-cluster {
-      position: absolute;
-      left: 20px;
-      right: 20px;
-      bottom: 18px;
-      z-index: 5;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      gap: 16px;
-    }
-
-    .ef-fortune-tag {
-      display: inline-flex;
-      align-items: stretch;
-      height: 46px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-    }
-
-    .ef-tag-rank {
-      background: var(--sig-primary);
-      color: var(--sig-badge-fg);
-      padding: 0 18px;
-      display: flex;
-      align-items: center;
-      font-family: var(--font-cn-bold);
-      font-size: 26px;
-      font-weight: 900;
-      letter-spacing: 3px;
+      letter-spacing: 1.2px;
+      color: rgba(255, 255, 255, 0.85);
       line-height: 1;
-      border: 1.5px solid var(--ef-ink);
-      border-right: none;
     }
 
-    .ef-tag-stars {
-      background: rgba(20, 21, 23, 0.88);
-      backdrop-filter: blur(10px);
-      border: 1.5px solid rgba(255, 255, 255, 0.22);
-      border-left: 2px solid var(--ef-ink);
-      padding: 0 22px 0 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
-    }
-
-    /* Clean Originium Diamond Glyphs */
-    .star-glyph {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      line-height: 1;
+    .vp-bottom-watermark .wm-accent {
       color: var(--sig-primary);
-      filter: drop-shadow(0 0 6px var(--sig-glow));
-    }
-
-    .star-glyph.empty {
-      color: rgba(255, 255, 255, 0.22);
-      filter: none;
-    }
-
-    /* Right side telemetry stamp on viewport bottom */
-    .vp-telemetry-stamp {
-      background: rgba(20, 21, 23, 0.88);
-      border: 1.5px solid rgba(255, 255, 255, 0.2);
-      padding: 10px 14px;
-      color: #FFFFFF;
-      font-family: var(--font-mono);
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
-      backdrop-filter: blur(8px);
-    }
-
-    .stamp-code {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: var(--sig-primary);
-    }
-
-    .stamp-sub {
-      font-size: 10px;
-      letter-spacing: 1px;
-      color: #B0B5C0;
     }
 
     /* ================= 4. LOWER TELEMETRY & PROPHECY MODULE ================= */
     .lower-dossier-panel {
       position: relative;
       z-index: 5;
-      padding: 18px 22px 16px 22px;
+      padding: 18px 20px 16px 20px;
       display: flex;
       flex-direction: column;
       gap: 14px;
@@ -622,22 +561,178 @@
       border-bottom: 6px solid var(--sig-primary);
     }
 
+    /* Integrated Endfield Fortune Readout Module (Paper + Ink + Signal Yellow) */
+    .fortune-readout-strip {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: stretch;
+      background: var(--ef-paper-light);
+      border: 2px solid var(--ef-ink);
+      box-shadow: 5px 5px 0 rgba(20, 21, 23, 0.12);
+      overflow: hidden;
+    }
+
+    /* Left Rank Block */
+    .fortune-rank-stamp {
+      position: relative;
+      background: var(--sig-primary);
+      color: var(--sig-badge-fg);
+      border-right: 2px solid var(--ef-ink);
+      padding: 10px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-width: 112px;
+    }
+
+    .rank-overline {
+      font-family: var(--font-mono);
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      opacity: 0.8;
+      margin-bottom: 2px;
+      line-height: 1;
+    }
+
+    .rank-kanji {
+      font-family: var(--font-cn-bold);
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+
+    /* Center Resonance Power Gauge */
+    .fortune-gauge-cell {
+      position: relative;
+      padding: 10px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+      background:
+        radial-gradient(rgba(20, 21, 23, 0.12) 1px, transparent 1px),
+        linear-gradient(90deg, var(--ef-paper-light) 0%, var(--ef-paper) 100%);
+      background-size: 10px 10px, 100% 100%;
+      min-width: 0;
+    }
+
+    .meter-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--ef-ink-muted);
+      letter-spacing: 1.2px;
+      line-height: 1;
+    }
+
+    .meter-label-row .meter-val {
+      background: var(--ef-ink);
+      color: var(--sig-primary);
+      font-family: var(--font-wide);
+      font-size: 9px;
+      padding: 2px 6px;
+      letter-spacing: 1.2px;
+    }
+
+    /* Industrial Segmented Power Cell Battery */
+    .resonance-gauge-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+    }
+
+    .resonance-gauge-bar .star-glyph {
+      font-size: 0 !important;
+      line-height: 0 !important;
+      display: block;
+      width: 18px;
+      height: 14px;
+      transform: skewX(-18deg);
+      background: var(--ef-ink);
+      border: 1.5px solid var(--ef-ink);
+      box-shadow: inset 0 -4px 0 var(--sig-primary);
+      position: relative;
+    }
+
+    .resonance-gauge-bar .star-glyph.empty {
+      background: rgba(20, 21, 23, 0.08);
+      border: 1.5px solid rgba(20, 21, 23, 0.28);
+      box-shadow: none;
+    }
+
+    /* Right Telemetry Verification Block */
+    .fortune-verify-cell {
+      background: var(--ef-ink);
+      color: #FFFFFF;
+      border-left: 2px solid var(--ef-ink);
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 4px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .stamp-code {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      color: var(--sig-primary);
+      line-height: 1;
+    }
+
+    .stamp-sub {
+      font-size: 8.5px;
+      letter-spacing: 1px;
+      color: #B8BDC7;
+      line-height: 1;
+    }
+
+    .ef-deco-blocks-svg {
+      width: 34px;
+      height: 10px;
+      color: var(--sig-primary);
+      opacity: 0.9;
+    }
+
+    /* Prophecy Directive Box */
     .directive-box {
       position: relative;
       background: var(--ef-paper-light);
       border: 2px solid var(--ef-ink);
       display: grid;
       grid-template-columns: 12px 1fr;
-      box-shadow: 6px 6px 0 rgba(20, 21, 23, 0.12);
+      box-shadow: 5px 5px 0 rgba(20, 21, 23, 0.12);
     }
 
     .directive-accent-bar {
-      background: var(--sig-primary);
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--sig-primary) 0,
+        var(--sig-primary) 6px,
+        var(--ef-ink) 6px,
+        var(--ef-ink) 12px
+      );
       border-right: 2px solid var(--ef-ink);
     }
 
     .directive-body {
-      padding: 18px 22px;
+      padding: 16px 20px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -672,11 +767,21 @@
     }
 
     .dir-serial {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
       letter-spacing: 1.5px;
       color: var(--ef-ink-muted);
+    }
+
+    .dir-points-svg {
+      width: 44px;
+      height: 8px;
+      color: var(--ef-ink-muted);
+      opacity: 0.65;
     }
 
     .directive-quote {
@@ -802,7 +907,6 @@
     <div class="endmin-meta-box">
       <div class="endmin-info">
         <span class="endmin-role">ENDMINISTRATOR // 管理员</span>
-        <span class="endmin-name">{{ username | e }}</span>
       </div>
       <div class="endmin-date-block">
         <span class="date-label">CYCLE DATE</span>
@@ -811,7 +915,7 @@
     </div>
   </header>
 
-  <!-- 3. MAIN STAGE: TACTICAL RAIL + VISUAL VIEWPORT -->
+  <!-- 3. MAIN STAGE: TACTICAL RAIL + FULL-BLEED VISUAL VIEWPORT -->
   <div class="main-stage-grid">
     <!-- Left Industrial Rail -->
     <aside class="left-tactical-rail" aria-hidden="true">
@@ -829,10 +933,8 @@
       </div>
     </aside>
 
-    <!-- Main Artwork Viewport -->
     <div class="hero-viewport">
       {% if image_base64 %}
-      <img class="viewport-backdrop-blur" src="data:image/jpeg;base64,{{ image_base64 | e }}" alt="" aria-hidden="true" />
       <img class="viewport-art-img" src="data:image/jpeg;base64,{{ image_base64 | e }}" alt="Talos-II Field Visual" />
       {% else %}
       <div class="viewport-placeholder">
@@ -840,43 +942,67 @@
       </div>
       {% endif %}
 
-      <div class="viewport-shade" aria-hidden="true"></div>
+      <div class="viewport-optical-lens" aria-hidden="true"></div>
 
-      <!-- Corner Crosshairs -->
-      <div class="vp-reticle vp-tl" aria-hidden="true"></div>
-      <div class="vp-reticle vp-tr" aria-hidden="true"></div>
-      <div class="vp-reticle vp-bl" aria-hidden="true"></div>
-      <div class="vp-reticle vp-br" aria-hidden="true"></div>
+      <!-- Viewfinder Brackets -->
+      <div class="art-camera-reticle" aria-hidden="true">
+        <span class="reticle-corner tl"></span>
+        <span class="reticle-corner tr"></span>
+        <span class="reticle-corner bl"></span>
+        <span class="reticle-corner br"></span>
+      </div>
 
-      <!-- Top HUD Overlay -->
-      <div class="vp-top-hud" aria-hidden="true">
-        <div class="hud-tag-chip">
-          <span class="pulse-sq"></span>
-          <span>RECON-FEED // LIVE TELEMETRY</span>
+      <!-- Lightweight Floating Telemetry HUD -->
+      <div class="vp-floating-hud" aria-hidden="true">
+        <div class="hud-rec-pill">
+          <span class="rec-dot"></span>
+          <span>REC // AIC-OPTICS</span>
+          <span class="hud-sep">//</span>
+          <span>142.85 MHz</span>
         </div>
-        <div class="hud-coord-chip">
+        <div class="hud-lock-tag">
           <span>AZIMUTH 214.8° // LOCK</span>
         </div>
       </div>
 
-      <!-- Bottom Fortune Result Cluster -->
-      <div class="vp-fortune-cluster">
-        <div class="ef-fortune-tag">
-          <div class="ef-tag-rank">{{ title | e }}</div>
-          <div class="ef-tag-stars">{{ stars_display | safe }}</div>
-        </div>
-
-        <div class="vp-telemetry-stamp" aria-hidden="true">
-          <span class="stamp-code">AIC // VERIFIED</span>
-          <span class="stamp-sub">BLIGHT-INDEX: 0.02%</span>
-          <span class="stamp-sub">ANCHOR: STABLE</span>
-        </div>
+      <div class="vp-bottom-watermark" aria-hidden="true">
+        <span class="wm-accent">■</span>
+        <span>TALOS-II // RECON-FEED</span>
       </div>
     </div>
   </div>
 
-  <!-- 4. LOWER DIRECTIVE & PROPHECY MODULE -->
+  <!-- 4. LOWER TELEMETRY & PROPHECY MODULE -->
   <section class="lower-dossier-panel">
+    <!-- Integrated Endfield Fortune Readout Strip -->
+    <div class="fortune-readout-strip">
+      <div class="fortune-rank-stamp">
+        <span class="rank-overline">FORTUNE // 运势</span>
+        <span class="rank-kanji">{{ title | e }}</span>
+      </div>
+
+      <div class="fortune-gauge-cell">
+        <div class="meter-label-row">
+          <span>RESONANCE LEVEL</span>
+          <span class="meter-val">CAL-07</span>
+        </div>
+        <div class="resonance-gauge-bar">
+          {{ stars_display | safe }}
+        </div>
+      </div>
+
+      <div class="fortune-verify-cell" aria-hidden="true">
+        <div class="stamp-code">
+          <svg class="ef-deco-blocks-svg" viewBox="0 0 63 19">
+            <path fill-rule="evenodd" fill="currentColor" d="M55.679,18.167 L55.679,11.082 L62.768,11.082 L62.768,18.167 L55.679,18.167 ZM55.679,0.505 L62.768,0.505 L62.768,7.590 L55.679,7.590 L55.679,0.505 ZM44.739,11.082 L51.829,11.082 L51.829,18.167 L44.739,18.167 L44.739,11.082 ZM44.739,0.505 L51.829,0.505 L51.829,7.590 L44.739,7.590 L44.739,0.505 ZM33.800,11.082 L40.890,11.082 L40.890,18.167 L33.800,18.167 L33.800,11.082 ZM33.800,0.505 L40.890,0.505 L40.890,7.590 L33.800,7.590 L33.800,0.505 ZM22.861,11.082 L29.951,11.082 L29.951,18.167 L22.861,18.167 L22.861,11.082 ZM22.861,0.505 L29.951,0.505 L29.951,7.590 L22.861,7.590 L22.861,0.505 ZM11.922,11.082 L19.012,11.082 L19.012,18.167 L11.922,18.167 L11.922,11.082 ZM11.922,0.505 L19.012,0.505 L19.012,7.590 L11.922,7.590 L11.922,0.505 ZM0.983,11.082 L8.073,11.082 L8.073,18.167 L0.983,18.167 L0.983,11.082 ZM0.983,0.505 L8.073,0.505 L8.073,7.590 L0.983,7.590 L0.983,0.505 Z" />
+          </svg>
+          <span>AIC // VERIFIED</span>
+        </div>
+        <span class="stamp-sub">BLIGHT-INDEX: 0.02%</span>
+        <span class="stamp-sub">ANCHOR: STABLE</span>
+      </div>
+    </div>
+
     <div class="directive-box">
       <div class="directive-accent-bar" aria-hidden="true"></div>
       <div class="directive-body">
@@ -885,7 +1011,12 @@
             <span class="dir-badge">DIRECTIVE</span>
             <span>FIELD PROPHECY // 勘测批注</span>
           </div>
-          <span class="dir-serial">DOC-ID // EF-0784-X</span>
+          <div class="dir-serial">
+            <svg class="dir-points-svg" viewBox="0 0 92 15" aria-hidden="true">
+              <path fill-rule="evenodd" fill="currentColor" d="M89.241,3.113 C88.381,3.113 87.684,2.416 87.684,1.557 C87.684,0.697 88.381,-0.000 89.241,-0.000 C90.101,-0.000 90.798,0.697 90.798,1.557 C90.798,2.416 90.101,3.113 89.241,3.113 ZM78.345,14.010 C77.485,14.010 76.788,13.313 76.788,12.453 C76.788,11.593 77.485,10.896 78.345,10.896 C79.204,10.896 79.901,11.593 79.901,12.453 C79.901,13.313 79.204,14.010 78.345,14.010 ZM78.345,3.113 C77.485,3.113 76.788,2.416 76.788,1.557 C76.788,0.697 77.485,-0.000 78.345,-0.000 C79.204,-0.000 79.901,0.697 79.901,1.557 C79.901,2.416 79.204,3.113 78.345,3.113 ZM67.448,14.010 C66.588,14.010 65.891,13.313 65.891,12.453 C65.891,11.593 66.588,10.896 67.448,10.896 C68.308,10.896 69.005,11.593 69.005,12.453 C69.005,13.313 68.308,14.010 67.448,14.010 ZM67.448,3.113 C66.588,3.113 65.891,2.416 65.891,1.557 C65.891,0.697 66.588,-0.000 67.448,-0.000 C68.308,-0.000 69.005,0.697 69.005,1.557 C69.005,2.416 68.308,3.113 67.448,3.113 ZM56.552,14.010 C56.498,14.010 56.448,13.999 56.396,13.994 C56.344,13.999 56.294,14.010 56.241,14.010 C55.381,14.010 54.684,13.313 54.684,12.453 C54.684,11.593 55.381,10.896 56.241,10.896 C56.294,10.896 56.344,10.907 56.396,10.912 C56.448,10.907 56.498,10.896 56.552,10.896 C57.411,10.896 58.108,11.593 58.108,12.453 C58.108,13.313 57.411,14.010 56.552,14.010 ZM56.552,3.113 C56.498,3.113 56.448,3.103 56.396,3.098 C56.344,3.103 56.294,3.113 56.241,3.113 C55.381,3.113 54.684,2.416 54.684,1.557 C54.684,0.697 55.381,-0.000 56.241,-0.000 C56.294,-0.000 56.344,0.010 56.396,0.016 C56.448,0.010 56.498,-0.000 56.552,-0.000 C57.411,-0.000 58.108,0.697 58.108,1.557 C58.108,2.416 57.411,3.113 56.552,3.113 ZM45.655,14.010 C45.602,14.010 45.552,13.999 45.500,13.994 C45.448,13.999 45.398,14.010 45.345,14.010 C44.485,14.010 43.788,13.313 43.788,12.453 C43.788,11.593 44.485,10.896 45.345,10.896 C45.398,10.896 45.448,10.907 45.500,10.912 C45.552,10.907 45.602,10.896 45.655,10.896 C46.515,10.896 47.212,11.593 47.212,12.453 C47.212,13.313 46.515,14.010 45.655,14.010 ZM45.655,3.113 C45.602,3.113 45.552,3.103 45.500,3.098 C45.448,3.103 45.398,3.113 45.345,3.113 C44.485,3.113 43.788,2.416 43.788,1.557 C43.788,0.697 44.485,-0.000 45.345,-0.000 C45.398,-0.000 45.448,0.010 45.500,0.016 C45.552,0.010 45.602,-0.000 45.655,-0.000 C46.515,-0.000 47.212,0.697 47.212,1.557 C47.212,2.416 46.515,3.113 45.655,3.113 ZM34.759,14.010 C34.705,14.010 34.655,13.999 34.603,13.994 C34.552,13.999 34.501,14.010 34.448,14.010 C33.588,14.010 32.891,13.313 32.891,12.453 C32.891,11.593 33.588,10.896 34.448,10.896 C34.501,10.896 34.552,10.907 34.603,10.912 C34.655,10.907 34.705,10.896 34.759,10.896 C35.618,10.896 36.315,11.593 36.315,12.453 C36.315,13.313 35.618,14.010 34.759,14.010 ZM34.759,3.113 C34.705,3.113 34.655,3.103 34.603,3.098 C34.552,3.103 34.501,3.113 34.448,3.113 C33.588,3.113 32.891,2.416 32.891,1.557 C32.891,0.697 33.588,-0.000 34.448,-0.000 C34.501,-0.000 34.552,0.010 34.603,0.016 C34.655,0.010 34.705,-0.000 34.759,-0.000 C35.618,-0.000 36.315,0.697 36.315,1.557 C36.315,2.416 35.618,3.113 34.759,3.113 ZM23.551,14.010 C22.692,14.010 21.995,13.313 21.995,12.453 C21.995,11.593 22.692,10.896 23.551,10.896 C24.411,10.896 25.108,11.593 25.108,12.453 C25.108,13.313 24.411,14.010 23.551,14.010 ZM23.551,3.113 C22.692,3.113 21.995,2.416 21.995,1.557 C21.995,0.697 22.692,-0.000 23.551,-0.000 C24.411,-0.000 25.108,0.697 25.108,1.557 C25.108,2.416 24.411,3.113 23.551,3.113 ZM12.655,14.010 C11.795,14.010 11.098,13.313 11.098,12.453 C11.098,11.593 11.795,10.896 12.655,10.896 C13.515,10.896 14.212,11.593 14.212,12.453 C14.212,13.313 13.515,14.010 12.655,14.010 ZM12.655,3.113 C11.795,3.113 11.098,2.416 11.098,1.557 C11.098,0.697 11.795,-0.000 12.655,-0.000 C13.515,-0.000 14.212,0.697 14.212,1.557 C14.212,2.416 13.515,3.113 12.655,3.113 ZM1.759,14.010 C0.899,14.010 0.202,13.313 0.202,13.313 C0.202,11.593 0.899,10.896 1.759,10.896 C2.618,10.896 3.315,11.593 3.315,12.453 C3.315,13.313 2.618,14.010 1.759,14.010 ZM1.759,3.113 C0.899,3.113 0.202,2.416 0.202,1.557 C0.202,0.697 0.899,-0.000 1.759,-0.000 C2.618,-0.000 3.315,0.697 3.315,1.557 C3.315,2.416 2.618,3.113 1.759,3.113 ZM89.241,10.896 C90.101,10.896 90.798,11.593 90.798,12.453 C90.798,13.313 90.101,14.010 89.241,14.010 C88.381,14.010 87.684,13.313 87.684,12.453 C87.684,11.593 88.381,10.896 89.241,10.896 Z" />
+            </svg>
+            <span>DOC-ID // EF-0784-X</span>
+          </div>
         </div>
         <p class="directive-quote">“{{ description | e }}”</p>
         {% if extra_message %}<p class="directive-extra">{{ extra_message | e }}</p>{% endif %}

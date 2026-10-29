@@ -332,11 +332,12 @@
       "card_theme": {
         "type": "string",
         "description": "卡片视觉风格",
-        "hint": "endfield：明日方舟：终末地；blue_archive：碧蓝档案；random：两套新风格随机切换；default：经典赛博卡片。",
+        "hint": "endfield：明日方舟：终末地；blue_archive：碧蓝档案；persona_5：女神异闻录5；random：新风格随机切换；default：经典赛博卡片。",
         "default": "endfield",
         "options": [
           "endfield",
           "blue_archive",
+          "persona_5",
           "random",
           "default"
         ],

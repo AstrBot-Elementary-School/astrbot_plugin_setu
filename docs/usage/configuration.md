@@ -193,7 +193,8 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 |----|------------|
 | `endfield`（默认） | 《明日方舟：终末地》工业档案与协议遥测风格（`templates/fortune_endfield.html`） |
 | `blue_archive` | 《碧蓝档案》什亭之匣与 MomoTalk 募集档案风格（`templates/fortune_blue_archive.html`） |
-| `random` | 每次渲染时在 `endfield` 与 `blue_archive` 两套风格间随机切换 |
+| `persona_5` | 《女神异闻录5》怪盗团预告信风格（`templates/fortune_persona5.html`） |
+| `random` | 每次渲染时在 `endfield`、`blue_archive`、`persona_5` 三套风格间随机切换 |
 | `default` | 经典深色赛博卡片（`templates/fortune.html`） |
 
 卡片渲染前先解析所选模板的占位符，按需准备用户名、运势字段、背景图片和字体；模板未引用背景图片时跳过下载。普通卡片命令在图片发送失败后获取文字回退所需的运势；LLM 工具继续返回文字运势。

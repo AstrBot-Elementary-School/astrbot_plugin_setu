@@ -130,6 +130,7 @@ class FortuneCardThemeStr(str, Enum):
 
     ENDFIELD = "endfield"
     BLUE_ARCHIVE = "blue_archive"
+    PERSONA_5 = "persona_5"
     DEFAULT = "default"
     RANDOM = "random"
 
