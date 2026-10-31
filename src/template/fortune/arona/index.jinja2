@@ -10,7 +10,7 @@
 </head>
 <body>
 
-<div class="card-container ba-shittim-card ">
+<div class="card-container ba-shittim-card {{ theme_color }}">
   <div class="ba-bg-decor" aria-hidden="true"></div>
 
   <!-- Giant Authentic S.C.H.A.L.E. Halo Watermark -->
@@ -78,7 +78,7 @@
     <div class="ba-hero-bottom-overlay">
       <div class="ba-fortune-capsule stars-{{ stars }}">
         <div class="ba-capsule-rank"><span>{{ title | e }}</span></div>
-        <div class="ba-capsule-stars">{% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">✦</span>{% endfor %}</div>
+        <div class="ba-capsule-stars">{% for i in range(7) %}<span class="star{{ ' empty' if i >= stars else '' }}">✦</span>{% endfor %}</div>
       </div>
     </div>
   </div>
