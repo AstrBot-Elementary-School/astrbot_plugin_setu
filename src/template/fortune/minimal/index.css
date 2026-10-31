@@ -16,5 +16,5 @@
     .petal.filled { fill: currentColor; }
     .description { margin: 0; padding-top: 24px; border-top: 1px solid #e1d9cb; font-size: 16px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
     .extra { margin: 18px 0 0; font-size: 13px; line-height: 1.8; color: #777b74; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .image { display: block; width: calc(100% - 32px); height: 300px; margin: 16px 16px 0; object-fit: cover; object-position: center 35%; border-radius: 2px; }
+    .image { display: block; width: calc(100% - 32px); height: auto; max-height: 540px; margin: 16px 16px 0; object-fit: cover; object-position: center 20%; border-radius: 2px; }
     @media (max-width: 487px) { body { padding: 16px; } .fortune-card { width: 100%; } .content { padding: 28px; } }

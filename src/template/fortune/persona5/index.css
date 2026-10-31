@@ -344,9 +344,10 @@
 
     .p5-art-img {
       width: 100%;
-      height: 520px;
+      height: auto;
+      max-height: 920px;
       object-fit: cover;
-      object-position: center 25%;
+      object-position: center 20%;
       display: block;
       filter: contrast(108%) brightness(100%);
       z-index: 1;
