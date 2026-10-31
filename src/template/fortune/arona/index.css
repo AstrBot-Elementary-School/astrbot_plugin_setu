@@ -111,7 +111,6 @@
       max-width: 100%;
       margin: 0 auto;
       background: var(--ba-surface);
-      border: 4px solid var(--ba-sky);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -143,14 +142,6 @@
     }
 
     /* ================= 1. UNIFIED SCHALE TOP HEADER ================= */
-    .ba-top-accent-strip {
-      position: relative;
-      z-index: 6;
-      height: 6px;
-      width: 100%;
-      background: linear-gradient(90deg, #1289F9 0%, #00D8FF 62%, #FB7299 100%);
-    }
-
     .ba-header {
       position: relative;
       z-index: 5;
