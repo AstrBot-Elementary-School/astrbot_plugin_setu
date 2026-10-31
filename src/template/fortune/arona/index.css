@@ -389,6 +389,41 @@
       font-weight: 900;
       letter-spacing: 2px;
       line-height: 1;
+      text-shadow: 0 1px 2px rgba(21, 44, 66, 0.16);
+    }
+
+    /* Progressive BA Azure-Dominant Color Scale (0★ Muted Slate-Blue -> Signature Azure -> Holo Prismatic Azure) */
+    .ba-fortune-capsule.stars-0 {
+      --rank-badge-bg: linear-gradient(135deg, #526D88 0%, #7594B3 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-1 {
+      --rank-badge-bg: linear-gradient(135deg, #3274BA 0%, #5CA0E6 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-2 {
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #47A8FF 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-3 {
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-4 {
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 65%, #7C83FD 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-5 {
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 52%, #8B78FF 78%, #FB7299 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-6 {
+      --rank-badge-bg: linear-gradient(135deg, #0A74DA 0%, #1289F9 36%, #00D8FF 64%, #C06CFF 84%, #FF5C93 100%);
+      --rank-pill-text: #FFFFFF;
+    }
+    .ba-fortune-capsule.stars-7 {
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 40%, #5EEAD4 60%, #FBBF24 79%, #FF4D80 100%);
+      --rank-pill-text: #FFFFFF;
     }
 
     .ba-capsule-rank span {
