@@ -19,7 +19,7 @@
       --p5-yellow: #FFE800;
       --p5-cyan: #00F0FF;
 
-      --font-p5: 'p5hatty', 'TVPS-Vain-Capital-2', 'Gilroy-ExtraBold', sans-serif;
+      --font-p5: 'p5hatty', 'TVPS-Vain-Capital-2', 'Gilroy-ExtraBold', 'NotoSansSC-Bold', sans-serif;
       --font-display: 'TVPS-Vain-Capital-2', 'Gilroy-ExtraBold', 'NotoSansSC-Bold', sans-serif;
       --font-cn-bold: 'SSFangTangTi', 'NotoSansSC-Bold', 'PingFang SC', sans-serif;
       --font-cn-reg: 'NotoSansSC-Regular', 'PingFang SC', sans-serif;
