@@ -150,6 +150,7 @@ async def test_docx_and_images_cleanup_after_send(tmp_path, load):
         )
     ]
     assert results[-1]["send_success"]
+    assert context.send_message.await_count == 2
     assert not list((cache.root / "setu").glob("*.docx")) and not cache.active
 
 
@@ -222,6 +223,10 @@ async def test_fortune_cache_theme_and_tags_keep_daily_stars(tmp_path, load):
             assert len(files) == 1
             await handler._get(ev)
             assert t2i.render_custom_template.await_count == 1
+            stopped = []
+            ev.stop_event = lambda: stopped.append(True)
+            assert [result async for result in handler.fortune_command(ev)] == []
+            assert stopped == [True]
             await handler.preference(ev, "theme", "minimal")
             assert not files[0].exists()
             await handler._get(ev)
