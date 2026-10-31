@@ -165,7 +165,7 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 `daily_fortune` 和 `setu_history` 保留包含当天的滚动 30 天。启动及跨日后首次数据访问先清理过期运势，再清理过期且未被运势引用的图片历史及关联文件。
 
-普通提示位于 `src/shared/config/messages.py`；各主题运势标题、正文位于 `src/template/fortune/<主题>/text.json`。`messages` 和 `tip` 均按字符串键 `"0"`～`"7"` 对应星级，每组先提供三条备选文案；每次渲染时分别随机抽取一条正文和寄语。开启运势缓存后会复用已生成的卡片。固定标识、装饰文字和图片说明直接写在主题的 `index.jinja2` 中。
+普通提示位于 `src/shared/config/messages.py`；各主题运势标题、正文位于 `src/template/fortune/<主题>/text.json`。`messages` 和 `tip` 均按字符串键 `"0"`～`"7"` 对应星级；`arona`、`endfield`、`persona5`、`minecraft` 每组各十条备选，`minimal` 每组一条，每次渲染时分别随机抽取一条正文和寄语。开启运势缓存后会复用已生成的卡片。固定标识、装饰文字和图片说明直接写在主题的 `index.jinja2` 中。
 
 ## 今日运势
 
