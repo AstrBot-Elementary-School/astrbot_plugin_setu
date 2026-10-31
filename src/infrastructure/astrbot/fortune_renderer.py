@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
+import yaml
 from jinja2 import Environment, StrictUndefined
 
 THEMES = ("arona", "endfield", "persona5", "minecraft", "minimal")
@@ -17,16 +18,36 @@ class FortuneRenderer:
     def __init__(self, card_theme="endfield"):
         self.card_theme = card_theme
         self.root = Path(__file__).resolve().parents[2] / "template" / "fortune"
+        self.aliases = {name: name for name in (*THEMES, "random")}
+        self.aliases["随机"] = "random"
+        for theme in THEMES:
+            path = self.root / theme / "template.yaml"
+            aliases = yaml.safe_load(path.read_text(encoding="utf-8"))["aliases"]
+            if not isinstance(aliases, list):
+                raise TypeError(f"{path} 的 aliases 需要填写字符串数组")
+            for alias in aliases:
+                if not isinstance(alias, str) or not alias.strip():
+                    raise ValueError(f"{path} 中的别名需要填写非空字符串")
+                key = alias.strip().casefold()
+                if key in self.aliases and self.aliases[key] != theme:
+                    raise ValueError(f"主题别名重复：{alias}")
+                self.aliases[key] = theme
         self.environment = Environment(autoescape=True, undefined=StrictUndefined)
         self._assets = {}
         self.versions = {}
 
+    def resolve_theme(self, theme):
+        key = theme.strip().casefold()
+        if key not in self.aliases:
+            raise ValueError(
+                f"未知运势主题：{theme}。可选主题：{'、'.join((*THEMES, 'random'))}"
+            )
+        return self.aliases[key]
+
     def choose_theme(self, theme=None):
-        selected = theme or self.card_theme
+        selected = self.resolve_theme(theme or self.card_theme)
         if selected == "random":
             selected = random.choice(THEMES)
-        if selected not in THEMES:
-            raise ValueError(f"未知运势主题：{selected}")
         return selected
 
     def assets(self, theme):

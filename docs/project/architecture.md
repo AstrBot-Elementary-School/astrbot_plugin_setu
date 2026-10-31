@@ -22,6 +22,8 @@ provider 返回逐图 `ImageMetadata(image_url, source_url, tags)`，下载结�
 
 模板输入为昵称、日期、星级、图片。主题的 `text.json` 管标题、正文、tip 和辅助文案，`index.css` 管样式；渲染器只装配所选主题及其字体。主题包括 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`，默认 `endfield`。
 
+各主题的 `template.yaml` 保存版本、名称、别名和作者，初始版本为 `"0.1"`。当前只使用 `aliases` 解析主题选择，偏好入库前统一为主题目录名，随机选择保存为 `random`。
+
 ## 持久化与缓存
 
 ```text

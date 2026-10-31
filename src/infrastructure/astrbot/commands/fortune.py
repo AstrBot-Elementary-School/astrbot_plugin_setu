@@ -151,12 +151,8 @@ class FortuneCommandHandler:
         async with self._user_lock(None, str(event.get_sender_id())):
             user_id = str(event.get_sender_id())
             if field is not None:
-                if (
-                    field == "theme"
-                    and value is not None
-                    and value not in (*THEMES, "random")
-                ):
-                    raise ValueError("可选主题：" + "、".join((*THEMES, "random")))
+                if field == "theme" and value is not None:
+                    value = self.renderer.resolve_theme(value)
                 await get_database().set_preference(user_id, field, value)
                 # 用户偏好跨会话共享，所有相关卡片随偏好失效。
                 rows = await (

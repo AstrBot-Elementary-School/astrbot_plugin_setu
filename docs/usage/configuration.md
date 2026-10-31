@@ -171,6 +171,8 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 
 `fortune.card_theme` 为默认主题，默认 `endfield`。可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`；随机主题从五个保留主题中选择。模板统一位于 `src/template/fortune/<主题>/index.jinja2`，样式为 `index.css`。
 
+配置面板将 `random` 显示为“随机”，每次查看随机选择主题，沿用当天星级。每个主题另有 `template.yaml`，记录 `version`（初始为 `"0.1"`）、`name`、`aliases`、`author`。插件当前只使用 `aliases` 解析偏好命令中的主题别名；编辑后重载插件生效。
+
 主题优先使用个人偏好。背景搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效，分级继续受会话配置和权限约束。后端保存每日星级与背景历史关联，切换主题保持星级。
 
 `fortune.enabled=false` 时移除运势入口和工具，跳过运势处理器与渲染器初始化。统一数据库和撤回调度照常初始化。

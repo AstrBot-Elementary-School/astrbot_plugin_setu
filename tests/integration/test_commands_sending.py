@@ -42,6 +42,14 @@ async def test_native_commands_preference_at_refresh_and_permissions(tmp_path, l
     assert tags.validate_and_convert_params(["猫耳", "白发"], tags.handler_params) == {
         "tags": "猫耳 白发"
     }
+    theme = next(
+        f
+        for f in handlers["preference_theme"].event_filters
+        if isinstance(f, CommandFilter)
+    )
+    assert theme.validate_and_convert_params(
+        ["Blue", "Archive"], theme.handler_params
+    ) == {"theme": "Blue Archive"}
     primary = next(
         f
         for f in handlers["setu_command"].event_filters
@@ -74,11 +82,19 @@ async def test_native_commands_preference_at_refresh_and_permissions(tmp_path, l
     try:
         group_event = event()
         private_event = event("p:FriendMessage:u")
-        await handler.preference(group_event, "theme", "minecraft")
+        await handler.preference(group_event, "theme", "我的世界")
+        assert (await db.preference("u"))["theme"] == "minecraft"
         assert "minecraft" in await handler.preference(private_event)
         assert "minecraft" in await handler.preference(
             event("p:GroupMessage:another-group")
         )
+        await handler.preference(private_event, "theme", " blue ARCHIVE ")
+        assert (await db.preference("u"))["theme"] == "arona"
+        await handler.preference(group_event, "theme", "随机")
+        assert (await db.preference("u"))["theme"] == "random"
+        with pytest.raises(ValueError, match="未知运势主题"):
+            await handler.preference(group_event, "theme", "不存在的主题")
+        assert (await db.preference("u"))["theme"] == "random"
         await handler.preference(group_event, "tags", '["猫耳","白发"]')
         assert json.loads((await db.preference("u"))["tags"]) == ["猫耳", "白发"]
         await handler.preference(private_event, "tags", None)

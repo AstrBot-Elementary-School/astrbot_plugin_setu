@@ -305,7 +305,7 @@ class SetuPlugin(Star):
             yield result
 
     @preference.command("主题")
-    async def preference_theme(self, event: AstrMessageEvent, theme: str):
+    async def preference_theme(self, event: AstrMessageEvent, *, theme: GreedyStr):
         async for result in self._preference_result(event, "theme", theme):
             yield result
 

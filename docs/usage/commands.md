@@ -61,6 +61,8 @@
 
 不带子命令时显示框架生成的帮助。主题可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`。搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效；主题按“个人偏好 → 插件默认值”生效。分级继续受会话设置约束。偏好使用框架返回的 `user_id` 保存，在各群聊与私聊共享。
 
+主题也支持别名，例如 `/运势偏好 主题 蔚蓝档案`、`/运势偏好 主题 Blue Archive`、`/运势偏好 主题 随机`。英文忽略大小写，保存时统一使用主题目录名或 `random`。各主题的别名写在 `template.yaml` 的 `aliases` 中，修改后重载插件生效。
+
 ## 入口开关
 
 `/色图` 的别名仍为 `/setu`。普通命令、短语入口、LLM 工具分别由 `setu_general.commands_enabled`、`natural_language_enabled`、`llm_tools_enabled` 控制。关闭后移除相应注册，保存并重载生效。

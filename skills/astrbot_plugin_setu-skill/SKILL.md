@@ -21,6 +21,8 @@ description: 使用 astrbot_plugin_setu 获取色图、随机本子和今日运�
 
 主题可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`，默认 `endfield`。主题按“个人偏好 → 插件默认值”生效；搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效。偏好以 `user_id` 为键跨会话共享，运势星级按会话、用户、日期保存，切换主题保持当天星级。
 
+偏好命令接受主题 `template.yaml` 中的 `aliases`，例如 `/运势偏好 主题 蔚蓝档案` 或 `/运势偏好 主题 Blue Archive`；英文忽略大小写。`/运势偏好 主题 随机` 保存为 `random`，配置面板也提供“随机”默认主题。
+
 配置在 AstrBot 插件面板修改，保存后重载。`setu_general.commands_enabled`、`natural_language_enabled`、`llm_tools_enabled` 分别控制普通命令、短语入口和 LLM 工具注册；关闭运势时也移除运势入口和工具。`safety` 使用完整 SID 管理会话权限，`session_configs` 管理会话分级和运势默认标签。
 
 未知配置删除、非法字段恢复默认；非法权限配置可能恢复开放访问，请提醒管理员检查 `safety`。文件缓存默认关闭，共用 512 MiB 上限；历史保留包含当天的 30 天。数据位于 `plugin_data/astrbot_plugin_setu/db.sqlite` 和 `cache/`。
