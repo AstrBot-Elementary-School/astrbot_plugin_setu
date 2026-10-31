@@ -22,12 +22,6 @@ def get_config() -> SetuPluginConfig | None:
     return _config
 
 
-def set_config(config: SetuPluginConfig) -> None:
-    """Set the plugin configuration singleton."""
-    global _config
-    _config = config
-
-
 def get_plugin_context() -> object | None:
     """Get the AstrBot plugin context singleton."""
     return _plugin_context

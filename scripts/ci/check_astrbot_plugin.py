@@ -45,6 +45,12 @@ _SENSITIVE_ENV_NAME_RE = re.compile(
 _CATCHABLE_ERRORS = (Exception, asyncio.CancelledError)
 _EXCLUDED_NAMES = {
     ".git",
+    "tmp",
+    ".firecrawl",
+    ".playwright-cli",
+    ".serena",
+    ".repo",
+    ".DS_Store",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
@@ -347,24 +353,34 @@ def _validate_command_registration(
             "registration", f"载入了 staging 之外的插件: {module_file}"
         )
     handlers = tuple(getattr(metadata, "star_handler_full_names", ()) or ())
-    expected = {
-        "regex_command",
-        "setu_command",
-        "random_doujinshi_command",
-        "fortune_command",
-        "fortune_refresh_command",
-    }
-    from astrbot.core.star.register.star_handler import get_handler_full_name
-
-    expected = {
-        get_handler_full_name(getattr(metadata.star_cls, name)) for name in expected
-    }
-    names = set(handlers)
-    if not expected <= names:
+    cfg = metadata.star_cls._plugin_config
+    general = cfg["setu_general"]
+    expected = set()
+    if general["natural_language_enabled"]:
+        expected.add("regex_command")
+    if general["commands_enabled"]:
+        expected.update({"setu_command", "random_doujinshi_command"})
+        if cfg["fortune"]["enabled"]:
+            expected.update(
+                {
+                    "fortune_command",
+                    "fortune_refresh_command",
+                    "fortune_refresh_all_command",
+                    "preference",
+                    "preference_show",
+                    "preference_theme",
+                    "preference_tags",
+                    "preference_reset_theme",
+                    "preference_reset_tags",
+                }
+            )
+    expected_names = {f"{metadata.module_path}_{name}" for name in expected}
+    if set(handlers) != expected_names:
         raise LoaderCheckError(
-            "registration", f"缺少命令 handler: {sorted(expected - names)}"
+            "registration",
+            f"handler 注册不符: expected={sorted(expected_names)}, actual={sorted(handlers)}",
         )
-    return 4, len(handlers)
+    return len(expected - {"regex_command"}), len(handlers)
 
 
 def _infer_phase_from_traceback_text(default_phase: str, error_trace: str) -> str:
@@ -632,12 +648,10 @@ def _format_items(items: tuple[object, ...], formatter: Callable[[object], str])
     return ", ".join(formatter(item) for item in items)
 
 
-def _assert_registration_is_observable(added: RuntimeSnapshot) -> None:
+def _assert_registration_is_observable(added: RuntimeSnapshot, config) -> None:
     """防止 lifecycle 检查在没有实际覆盖注册动作时假绿。"""
 
     missing: list[str] = []
-    if not added.handlers:
-        missing.append("handlers")
     expected_tools = {
         "get_setu_image",
         "get_today_fortune",
@@ -645,6 +659,10 @@ def _assert_registration_is_observable(added: RuntimeSnapshot) -> None:
         "refresh_group_fortune",
         "refresh_all_fortune",
     }
+    if not config["setu_general"]["llm_tools_enabled"]:
+        expected_tools = set()
+    elif not config["fortune"]["enabled"]:
+        expected_tools = {"get_setu_image"}
     tools = {_describe_tool(tool) for tool in added.tools}
     if tools != expected_tools:
         missing.append(
@@ -688,6 +706,8 @@ async def run_loader_check(
     plugin_dir: str | Path,
     astrbot_root: str | Path,
     plugin_name: str,
+    config: dict[str, Any] | None = None,
+    reload_config: dict[str, Any] | None = None,
     runtime_factory: Callable[..., LoaderRuntime | Awaitable[LoaderRuntime]]
     | None = None,
 ) -> LoaderReport:
@@ -729,6 +749,10 @@ async def run_loader_check(
             astrbot_root=root,
             plugin_name=plugin_name,
         )
+        if config is not None:
+            config_path = root / "data" / "config" / f"{plugin_name}_config.json"
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(json.dumps(config, ensure_ascii=False))
         plugin_version, _plugin_astrbot_spec = _read_plugin_metadata(
             staged_plugin,
             plugin_name,
@@ -778,7 +802,24 @@ async def run_loader_check(
         )
         loaded_snapshot = runtime.snapshot_state()
         registered = _delta(baseline, loaded_snapshot)
-        _assert_registration_is_observable(registered)
+        _assert_registration_is_observable(registered, loaded_plugin._plugin_config)
+
+        if reload_config is not None:
+            config_path = root / "data" / "config" / f"{plugin_name}_config.json"
+            config_path.write_text(json.dumps(reload_config, ensure_ascii=False))
+            phase = "reload"
+            success, detail = await runtime.plugin_manager.reload(
+                specified_plugin_name=plugin_name
+            )
+            if not success:
+                raise _official_load_failure(runtime, plugin_name, detail)
+            metadata = _find_metadata(runtime, plugin_name)
+            loaded_plugin = metadata.star_cls
+            command_count, handler_count = _validate_command_registration(
+                staged_plugin, metadata
+            )
+            registered = _delta(baseline, runtime.snapshot_state())
+            _assert_registration_is_observable(registered, loaded_plugin._plugin_config)
 
         report = LoaderReport(
             astrbot_version=astrbot_version,
@@ -913,6 +954,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plugin-dir", required=True, help="当前插件源码目录")
     parser.add_argument("--astrbot-root", required=True, help="临时 ASTRBOT_ROOT")
     parser.add_argument("--plugin-name", required=True, help="插件目录名")
+    parser.add_argument("--config", help="合成插件配置 JSON 文件，仅用于生命周期检查")
+    parser.add_argument(
+        "--reload-config", help="首次注册检查后写入此合成配置并执行官方重载"
+    )
     return parser
 
 
@@ -927,6 +972,12 @@ def main() -> int:
                 plugin_dir=plugin_dir,
                 astrbot_root=args.astrbot_root,
                 plugin_name=args.plugin_name,
+                config=json.loads(Path(args.config).read_text())
+                if args.config
+                else None,
+                reload_config=json.loads(Path(args.reload_config).read_text())
+                if args.reload_config
+                else None,
             ),
         )
     except _CATCHABLE_ERRORS as error:

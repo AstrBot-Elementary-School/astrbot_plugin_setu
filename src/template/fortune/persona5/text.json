@@ -1,0 +1,49 @@
+{
+  "titles": [
+    "凶",
+    "末吉",
+    "末小吉",
+    "小吉",
+    "中吉",
+    "吉",
+    "大吉",
+    "超大吉"
+  ],
+  "messages": [
+    "长夜再暗，火种仍在，转机终会到来。",
+    "微光不灭，步步向前，黎明就在眼前。",
+    "心怀希冀，顺流而行，好事悄然靠近。",
+    "逆境翻篇，机遇迎面，惊喜不期而至。",
+    "小吉随身，难题化易，幸运与你并肩。",
+    "吉星高照，所行皆坦，所愿皆如愿。",
+    "福泽深厚，大吉加身，一路花开有声。",
+    "七星同耀，奇迹频现，今日万事皆成。"
+  ],
+  "tip": "",
+  "labels": {
+    "label_1": "Phantom Thieves Calling Card - Today's Fortune",
+    "label_2": "T",
+    "label_3": "A",
+    "label_4": "K",
+    "label_5": "E",
+    "label_6": "Y",
+    "label_7": "O",
+    "label_8": "U",
+    "label_9": "R",
+    "label_10": "H",
+    "label_11": "E",
+    "label_12": "A",
+    "label_13": "R",
+    "label_14": "T",
+    "label_15": "PHANTOM THIEVES OF HEARTS",
+    "label_16": "TARGET:",
+    "label_17": "THE PHANTOM REVELATION",
+    "label_18": "SHOW ME YOUR TRUE FORM",
+    "label_19": "✦",
+    "label_20": "CONFIRMED",
+    "label_21": "ALL-OUT ATTACK FINISH",
+    "label_22": "!",
+    "label_23": "NOTICE // 预言",
+    "alt_24": "Persona Visual Feed"
+  }
+}

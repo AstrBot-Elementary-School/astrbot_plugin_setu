@@ -1,627 +1,353 @@
-"""Fortune command handler - all Fortune-related commands."""
+"""运势命令、个人偏好和 LLM 工具。"""
 
-from __future__ import annotations
-
+import asyncio
 import base64
-import contextlib
+import json
 import random
-from collections.abc import AsyncGenerator
-from typing import Any
+from contextlib import asynccontextmanager
+from io import BytesIO
+from uuid import NAMESPACE_URL, uuid5
 
-import astrbot.api.message_components as Comp  # type: ignore[import-untyped,import-not-found]
-from astrbot.api.event import (  # type: ignore[import-untyped,import-not-found]
-    AstrMessageEvent,
-)
-from astrbot.core.provider.register import (  # type: ignore[import-untyped,import-not-found]
-    llm_tools,
-)
+import astrbot.api.message_components as Comp
+import httpx
+from astrbot.core.provider.register import llm_tools
+from PIL import Image
 
 from ....application.session_config import SessionConfigService
 from ....application.setu import ImagePayload
+from ....domain import HTTP_TIMEOUT_SECONDS
 from ....domain.access_control.service import AccessControlService
-from ....domain.fortune import (
-    FortuneGenerationRequest,
-    FortuneRecord,
-)
+from ....domain.fortune import FortuneGenerationRequest
 from ....domain.fortune.service import FortuneService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
-from ....shared.config.messages import MessagesConfig
-from ... import get_access_control_repo, get_provider
+from ....shared.cache import get_cache
 from ...permission_service import PermissionService
-from ...persistence import get_fortune_repo
-from ...providers import init_provider_from_config
-from ...sending import DirectSendStrategy, ImageSender, schedule_revoke
-from ...sending.platform_capabilities import is_onebot_like_platform
-from ..config import get_config, get_plugin_context
-from ..fortune_renderer import FortuneRenderer
+from ...persistence import get_access_control_repo, get_fortune_repo
+from ...persistence.database import get_database
+from ...providers import get_provider
+from ...sending import ImageSender
+from ..config import get_config
+from ..fortune_renderer import THEMES, FortuneRenderer
 from ..session_identity import get_event_session_identity
 
 logger = get_logger()
 
 
 class FortuneCommandHandler:
-    """Handles all Fortune-related commands.
+    def __init__(self):
+        self.renderer = FortuneRenderer()
+        self.locks = {}
 
-    Uses singleton pattern for config, fortune repo, and access control repo.
-    Commands are auto-registered by AstrBot decorators.
-    """
-
-    def __init__(self) -> None:
-        self._renderer: FortuneRenderer | None = None
-
-    # ==================== Command Handlers ====================
-
-    async def fortune_command(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /今日运势 command (/今日运势, /jrys)."""
-        if unavailable := self._unavailable(tool=False):
-            yield event.plain_result(unavailable)
-            return
-
-        config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
-        has_perm, msg = await self._check_access(event, config)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        request = self._build_fortune_request(event, include_username=False)
-
+    @asynccontextmanager
+    async def _user_lock(self, session_id, user_id):
+        key = user_id
+        entry = self.locks.setdefault(key, [asyncio.Lock(), 0])
+        entry[1] += 1
         try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            if await self._send_fortune_image(event, request, service, config):
-                return
-            result = await service.get_or_create_fortune(
-                self._build_fortune_request(event)
-            )
-            text = self._message(
-                "fortune_image_failed", fortune=self._format_fortune(result)
-            )
-            if await self._send_fortune_with_auto_revoke(
-                event, [Comp.Plain(text)], config
-            ):
-                return
-            yield event.plain_result(text)
-        except Exception as e:
-            text = self._message("fortune_get_failed", error=e)
-            if result := self._plain(event, text):
-                yield result
+            async with entry[0]:
+                yield
+        finally:
+            entry[1] -= 1
+            if entry[1] == 0:
+                del self.locks[key]
 
-    async def _send_fortune_image(
-        self,
-        event: AstrMessageEvent,
-        record: FortuneRecord | FortuneGenerationRequest,
-        service: FortuneService,
-        config: Any,
-    ) -> bool:
-        """Share image delivery across commands and tools; uncertain receipts must not trigger duplicates."""
-        try:
-            image = await self._render_fortune_image(record, service, event=event)
-            if not image:
-                return False
-            payload = ImagePayload(urls=(), raw_bytes=(image,), r18=False, tags=())
-            sender = ImageSender(config, logger, content_type="fortune")
-            sent = False
-            async for result in sender.send_images(payload, event):
-                if isinstance(result, dict) and result.get("send_success"):
-                    sent = True
-            # The caller supplies the text fortune instead of the generic image-failure notice.
-            return sent
-        except Exception:
-            logger.exception("[fortune] image delivery failed; falling back to text")
-            return False
-
-    async def _send_fortune_with_auto_revoke(
-        self,
-        event: AstrMessageEvent,
-        chain: list[Any],
-        config: Any,
-    ) -> bool:
-        """在启用且支持的情况下发送今日运势并登记可恢复撤回任务。"""
-        if not getattr(config, "auto_revoke_fortune_enabled", False):
-            return False
-        if config.auto_revoke_delay <= 0:
-            return False
-
-        platform_name = getattr(getattr(event, "platform", None), "name", None)
-        if not is_onebot_like_platform(platform_name):
-            return False
-
-        plugin_context = get_plugin_context()
-        if plugin_context is None:
-            logger.warning("[fortune] 自动撤回已启用但插件上下文未初始化")
-            return False
-
-        send_result = await DirectSendStrategy(plugin_context).send_with_status(
-            event, chain, auto_revoke=True
-        )
-        if not send_result.accepted:
-            return False
-        if not send_result.message_ids:
-            logger.warning("[fortune] 发送成功但未返回 message_id，无法登记自动撤回")
-            return True
-
-        scheduled = 0
-        for message_id in send_result.message_ids:
-            if await schedule_revoke(event, message_id, config.auto_revoke_delay):
-                scheduled += 1
-        if scheduled == 0:
-            logger.warning("[fortune] 未能登记今日运势自动撤回任务")
-        return True
-
-    async def refresh_fortune_command(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /刷新今日运势 command."""
-        if unavailable := self._unavailable(tool=False):
-            yield event.plain_result(unavailable)
-            return
-
-        has_perm, msg = await self._check_self_refresh(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
-        request = self._build_fortune_request(event)
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            result = await service.refresh_fortune(request)
-            yield event.plain_result(self._format_fortune(result))
-        except Exception as e:
-            text = self._message("fortune_refresh_failed", error=e)
-            if result := self._plain(event, text):
-                yield result
-
-    async def refresh_group_fortune_command(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /刷新本群今日运势 command."""
-        if unavailable := self._unavailable(tool=False):
-            yield event.plain_result(unavailable)
-            return
-
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        group_id = event.get_group_id()
-        if not group_id:
-            if result := self._plain(event, self._message("fortune_group_only")):
-                yield result
-            return
-
-        config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            text = self._message("fortune_refresh_group_done", count=refreshed_count)
-            if result := self._plain(event, text):
-                yield result
-        except Exception as e:
-            text = self._message("fortune_refresh_group_failed", error=e)
-            if result := self._plain(event, text):
-                yield result
-
-    async def refresh_all_fortune_command(
-        self, event: AstrMessageEvent
-    ) -> AsyncGenerator[Any, None]:
-        """Handle /刷新全局今日运势 command."""
-        if unavailable := self._unavailable(tool=False):
-            yield event.plain_result(unavailable)
-            return
-
-        has_perm, msg = PermissionService.require_super_user(event)
-        if not has_perm:
-            if result := self._plain(event, msg):
-                yield result
-            return
-
-        config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            text = self._message("fortune_refresh_all_done", count=refreshed_count)
-            if result := self._plain(event, text):
-                yield result
-        except Exception as e:
-            text = self._message("fortune_refresh_all_failed", error=e)
-            if result := self._plain(event, text):
-                yield result
-
-    # ==================== LLM Tool Handlers ====================
-
-    async def _llm_get_fortune(self, event: AstrMessageEvent) -> str:
-        """LLM tool handler for getting today's fortune."""
-        if unavailable := self._unavailable(tool=True):
-            return unavailable
-
-        config = get_config()
-        if not config:
-            return self._message("config_not_loaded")
-
-        has_perm, msg = await self._check_access(event, config)
-        if not has_perm:
-            return msg
-
-        request = self._build_fortune_request(event)
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            result = await service.get_or_create_fortune(request)
-            sent = await self._send_fortune_image(event, result, service, config)
-            return self._message(
-                "fortune_image_submitted" if sent else "fortune_image_failed",
-                fortune=self._format_fortune(result),
-            )
-        except Exception as e:
-            return self._message("fortune_get_failed", error=e)
-
-    async def _llm_refresh_fortune(self, event: AstrMessageEvent) -> str:
-        """LLM tool handler for refreshing today's fortune."""
-        if unavailable := self._unavailable(tool=True):
-            return unavailable
-
-        has_perm, msg = await self._check_self_refresh(event)
-        if not has_perm:
-            return msg
-
-        config = get_config()
-        if not config:
-            return self._message("config_not_loaded")
-
-        request = self._build_fortune_request(event)
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            result = await service.refresh_fortune(request)
-            return f"今日运势已刷新: {result.title}"
-        except Exception as e:
-            return self._message("fortune_refresh_failed", error=e)
-
-    async def _llm_refresh_group_fortune(self, event: AstrMessageEvent) -> str:
-        """LLM tool handler for refreshing group fortunes."""
-        if unavailable := self._unavailable(tool=True):
-            return unavailable
-
-        has_perm, msg = PermissionService.require_admin(event)
-        if not has_perm:
-            return msg
-
-        group_id = event.get_group_id()
-        if not group_id:
-            return self._message("fortune_group_only")
-
-        config = get_config()
-        if not config:
-            return self._message("config_not_loaded")
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            return self._message("fortune_refresh_group_done", count=refreshed_count)
-        except Exception as e:
-            return self._message("fortune_refresh_group_failed", error=e)
-
-    async def _llm_refresh_all_fortune(self, event: AstrMessageEvent) -> str:
-        """LLM tool handler for refreshing all fortunes."""
-        if unavailable := self._unavailable(tool=True):
-            return unavailable
-
-        has_perm, msg = PermissionService.require_super_user(event)
-        if not has_perm:
-            return msg
-
-        config = get_config()
-        if not config:
-            return self._message("config_not_loaded")
-
-        try:
-            repo = get_fortune_repo()
-            service = FortuneService(repository=repo)
-            refreshed_count = await service.pregenerate_active_users()
-            return self._message("fortune_refresh_all_done", count=refreshed_count)
-        except Exception as e:
-            return self._message("fortune_refresh_all_failed", error=e)
-
-    async def pregenerate_active_fortune_images(self, days: int = 3) -> int:
-        """Pregenerate and cache rendered fortune cards for active users."""
-        config = get_config()
-        if not config or not config.fortune.enabled or not config.fortune.auto_refresh:
-            return 0
-
-        repo = get_fortune_repo()
-        service = FortuneService(repository=repo)
-        access_repo = get_access_control_repo()
-        access_service = AccessControlService(access_repo)
-
-        async def can_pregenerate(request: FortuneGenerationRequest) -> bool:
-            return access_service.check_access("fortune", request.session_id)
-
-        records = await service.pregenerate_active_user_records(
-            days=days,
-            include_existing=True,
-            access_filter=can_pregenerate,
-        )
-
-        cached_count = 0
-        for record in records:
-            try:
-                if await service.get_cached_image(record.user_id, record.date_str):
-                    continue
-                image_bytes = await self._render_fortune_image(record, service)
-                if image_bytes:
-                    cached_count += 1
-            except Exception as exc:
-                logger.warning(
-                    "[fortune] Failed to pregenerate cache for %s: %s",
-                    record.user_id,
-                    exc,
-                )
-        return cached_count
-
-    # ==================== Helper Methods ====================
-
-    def _unavailable(self, *, tool: bool = False) -> str:
-        config = get_config()
-        if config is None:
-            return self._message("config_not_loaded")
-        if not config.fortune.enabled:
-            return self._message("feature_disabled", feature="今日运势")
-        if tool and not config.setu_general.llm_tools_enabled:
-            return self._message("feature_disabled", feature="LLM 工具")
-        return ""
-
-    async def _check_self_refresh(self, event: AstrMessageEvent) -> tuple[bool, str]:
-        config = get_config()
-        if config is None:
-            return False, self._message("config_not_loaded")
-        allowed, message = await self._check_access(event, config)
-        if not allowed:
-            return allowed, message
-        if config.fortune.allow_user_refresh:
-            return True, ""
-        return PermissionService.require_admin(event)
-
-    async def _check_access(self, event: AstrMessageEvent, config) -> tuple[bool, str]:
-        """Check access using the complete conversation SID."""
-        allowed = AccessControlService(get_access_control_repo()).check_access(
+    async def _access(self, event):
+        if not get_config().fortune.enabled:
+            raise ValueError("今日运势已关闭。")
+        if not AccessControlService(get_access_control_repo()).check_access(
             "fortune", get_event_session_identity(event).session_id
-        )
-        return allowed, "" if allowed else self._message("access_denied")
+        ):
+            raise PermissionError("当前会话没有今日运势的使用权限。")
 
-    def _build_fortune_request(
-        self, event: AstrMessageEvent, *, include_username: bool = True
-    ) -> FortuneGenerationRequest:
-        """Build a framework-free fortune generation request from an AstrBot event."""
-        user_id = str(event.get_sender_id())
-        username = user_id
-        sender = (
-            getattr(getattr(event, "message_obj", None), "sender", None)
-            if include_username
-            else None
-        )
-        for attr in ("nickname", "name", "user_name") if include_username else ():
-            value = getattr(sender, attr, None)
-            if value:
-                username = str(value)
-                break
-        group_id = event.get_group_id()
+    def request(self, event, user_id=None):
         return FortuneGenerationRequest.for_today(
-            user_id=user_id,
-            username=username,
-            group_id=str(group_id) if group_id else None,
-            session_id=get_event_session_identity(event).session_id,
+            str(user_id or event.get_sender_id()),
+            event.get_sender_name(),
+            get_event_session_identity(event).session_id,
         )
 
-    def _format_fortune(self, result: FortuneRecord) -> str:
-        """Format fortune result for message sending."""
-        return (
-            f"🔮 {result.date_str} 运势\n"
-            f"📊 {result.title}\n"
-            f"⭐ {'★' * result.star_count}{'☆' * (result.max_stars - result.star_count)}\n"
-            f"💬 {result.description}"
-        )
-
-    def _plain(self, event: AstrMessageEvent, text: str | None) -> Any | None:
-        """Build a plain result only when the configured text is not empty."""
-        if not text:
-            return None
-        return event.plain_result(text)
-
-    async def _render_fortune_image(
-        self,
-        record: FortuneRecord | FortuneGenerationRequest,
-        service: FortuneService,
-        *,
-        event: AstrMessageEvent | None = None,
-    ) -> bytes | None:
-        """Resolve the template before fetching its data dependencies."""
-        cached = await service.get_cached_image(record.user_id, record.date_str)
-        if cached:
-            return cached
-
-        card_theme = get_config().fortune.card_theme.value
-        if self._renderer is None:
-            self._renderer = FortuneRenderer(card_theme=card_theme)
-        template = self._renderer._get_template(card_theme)
-        variables = self._renderer.template_variables(template)
-        fortune_fields = {
-            "title",
-            "stars_display",
-            "description",
-            "extra_message",
-            "theme_color",
-        }
-        if isinstance(record, FortuneGenerationRequest):
-            if "username" in variables:
-                record = self._build_fortune_request(event)
-            if variables & fortune_fields:
-                record = await service.get_or_create_fortune(record)
-
-        image_base64 = None
-        img_url = None
-        if "image_base64" in variables:
-            bg_bytes, img_url = await self._get_fortune_background_image(
-                record.session_id
+    async def _get(self, event):
+        await self._access(event)
+        request = self.request(event)
+        async with self._user_lock(request.session_id, request.user_id):
+            record = await FortuneService(get_fortune_repo()).get_or_create_fortune(
+                request
             )
-            if bg_bytes is None:
-                return None
-            image_base64 = base64.b64encode(bg_bytes).decode("ascii")
-
-        fortune_dict = {
-            name: getattr(record, name)
-            for name in variables - {"fonts_css", "image_base64", "stars_display"}
-        }
-        if "stars_display" in variables:
-            fortune_dict.update(
-                star_count=record.star_count, max_stars=record.max_stars
+            pref = await get_database().preference(str(event.get_sender_id()))
+            theme = self.renderer.choose_theme(
+                pref["theme"] or get_config().fortune.card_theme.value
             )
-        image_bytes = await self._renderer.render_to_image(
-            fortune_dict, image_base64=image_base64, template=template
-        )
-        if image_bytes is not None and isinstance(record, FortuneRecord):
-            await service.update_image_cache(record, image_bytes, img_url)
-        return image_bytes
-
-    async def _get_fortune_background_image(
-        self, session_id: str | None = None
-    ) -> tuple[bytes | None, str | None]:
-        config = get_config()
-        try:
-            init_provider_from_config(config)
-            provider = get_provider()
-
-            settings = SessionConfigService(config).resolve(session_id)
-            tags = [t.strip() for t in settings.fortune_tags.split(",") if t.strip()]
-            mode = settings.fortune_content_mode
-            if mode == "r18":
-                is_r18 = True
-            elif mode == "mix":
-                is_r18 = random.random() > 0.5
-            else:
-                is_r18 = False
-
-            request = SetuRequest.from_user_input(
-                count=1,
-                tags=tags,
-                r18=is_r18,
-                exclude_ai=config.exclude_ai,
-                max_replenish_rounds=config.max_replenish_rounds,
-            )
-            payload = await provider.fetch_and_download(request)
-            if payload.is_empty:
-                return None, None
-
-            if payload.raw_bytes:
-                return payload.raw_bytes[0], payload.urls[0] if payload.urls else None
-            if payload.items and isinstance(payload.items[0], bytes):
-                return payload.items[0], payload.urls[0] if payload.urls else None
-            if payload.file_paths:
-                return payload.file_paths[0].read_bytes(), (
-                    payload.urls[0] if payload.urls else None
+            try:
+                image = await self.render(event, record, request.username, pref, theme)
+            except Exception as exc:
+                logger.exception("运势卡片生成失败")
+                return (
+                    self.renderer.format_text(record, theme) + f"\n卡片生成失败：{exc}"
                 )
-            return None, None
-        except Exception as exc:
-            logger.warning("[fortune] failed to fetch background image: %s", exc)
-            return None, None
+            payload = ImagePayload(urls=(), raw_bytes=(image,), r18=False, tags=())
+            async for result in ImageSender(
+                get_config(), logger, content_type="fortune"
+            ).send_images(payload, event):
+                if isinstance(result, dict) and result.get("send_success"):
+                    return "ok"
+            return self.renderer.format_text(record, theme) + "\n卡片发送失败。"
 
-    def _message(self, key: str, **kwargs: Any) -> str:
-        return MessagesConfig.resolve_message(key, **kwargs) or ""
-
-
-# ==================== LLM Tools Registration ====================
-
-
-def register_llm_tools() -> None:
-    """Register Fortune LLM tools."""
-    config = get_config()
-    if (
-        config is None
-        or not config.fortune.enabled
-        or not config.setu_general.llm_tools_enabled
-    ):
-        return
-    _handler = FortuneCommandHandler()
-    tools = [
-        (
-            "get_today_fortune",
-            _handler._llm_get_fortune,
-            [],
-            "Send today's fortune image; return a text fortune if image delivery fails.",
-        ),
-        (
-            "refresh_my_fortune",
-            _handler._llm_refresh_fortune,
-            [],
-            "Refresh my today's fortune when permitted by the plugin configuration.",
-        ),
-        (
-            "refresh_group_fortune",
-            _handler._llm_refresh_group_fortune,
-            [],
-            "Refresh today's fortune for the current group (admin only).",
-        ),
-        (
-            "refresh_all_fortune",
-            _handler._llm_refresh_all_fortune,
-            [],
-            "Refresh today's fortune for all users (super admin only).",
-        ),
-    ]
-
-    for name, handler, args, desc in tools:
+    async def fortune_command(self, event):
         try:
-            llm_tools.add_func(name=name, func_args=args, desc=desc, handler=handler)
-            tool = llm_tools.get_func(name)
-            if tool:
-                tool.handler_module_path = __name__
-        except (AttributeError, RuntimeError):
-            pass
+            result = await self._get(event)
+            if result != "ok":
+                yield event.plain_result(result)
+        except Exception as exc:
+            logger.exception("获取运势失败")
+            yield event.plain_result(f"获取运势失败：{exc}")
+        event.stop_event()
+
+    async def refresh(self, event, target=None):
+        await self._access(event)
+        if target is not None or not get_config().fortune.allow_user_refresh:
+            allowed, message = PermissionService.require_admin(event)
+            if not allowed:
+                raise PermissionError(message)
+        request = self.request(event, target)
+        async with self._user_lock(request.session_id, request.user_id):
+            await FortuneService(get_fortune_repo()).refresh_fortune(request)
+        return (
+            f"已刷新{'该用户' if target is not None else '你'}在当前会话中的今日运势。"
+        )
+
+    async def refresh_fortune_command(self, event):
+        try:
+            targets = [
+                str(component.qq)
+                for component in event.get_messages()
+                if isinstance(component, Comp.At)
+                and str(component.qq) != str(event.get_self_id())
+            ]
+            if len(targets) > 1:
+                raise ValueError("每次请只 At 一位用户。")
+            yield event.plain_result(
+                await self.refresh(event, targets[0] if targets else None)
+            )
+        except Exception as exc:
+            yield event.plain_result(f"刷新失败：{exc}")
+
+    async def refresh_all(self, event):
+        await self._access(event)
+        allowed, message = PermissionService.require_super_user(event)
+        if not allowed:
+            raise PermissionError(message)
+        count = await FortuneService(get_fortune_repo()).refresh_all_fortunes()
+        return f"已清理今天的 {count} 条运势，下次查看时重新生成。"
+
+    async def refresh_all_fortune_command(self, event):
+        try:
+            yield event.plain_result(await self.refresh_all(event))
+        except Exception as exc:
+            yield event.plain_result(f"全局刷新失败：{exc}")
+
+    async def preference(self, event, field=None, value=None):
+        await self._access(event)
+        async with self._user_lock(None, str(event.get_sender_id())):
+            user_id = str(event.get_sender_id())
+            if field is not None:
+                if (
+                    field == "theme"
+                    and value is not None
+                    and value not in (*THEMES, "random")
+                ):
+                    raise ValueError("可选主题：" + "、".join((*THEMES, "random")))
+                await get_database().set_preference(user_id, field, value)
+                # 用户偏好跨会话共享，所有相关卡片随偏好失效。
+                rows = await (
+                    await get_database().connection.execute(
+                        "SELECT id,session_id FROM daily_fortune WHERE user_id=?",
+                        (str(event.get_sender_id()),),
+                    )
+                ).fetchall()
+                for row in rows:
+                    get_fortune_repo().invalidate(row["id"])
+                    if field == "tags":
+                        async with get_database().transaction() as db:
+                            await db.execute(
+                                "UPDATE daily_fortune SET setu_history_id=NULL WHERE id=?",
+                                (row["id"],),
+                            )
+            pref = await get_database().preference(user_id)
+            return f"主题：{pref['theme'] or '使用默认主题'}\n搜索标签：{'、'.join(json.loads(pref['tags'])) if pref['tags'] is not None else '使用会话配置或默认标签'}\n可选主题：{'、'.join((*THEMES, 'random'))}"
+
+    async def render(self, event, record, username, pref, theme):
+        cache = get_cache()
+        db = get_database()
+        row = await (
+            await db.connection.execute(
+                "SELECT setu_history_id FROM daily_fortune WHERE id=?", (record.id,)
+            )
+        ).fetchone()
+        history_id = row["setu_history_id"]
+        display = {
+            "username": username,
+            "date_str": record.date_str,
+            "stars": record.star_count,
+        }
+        self.renderer.assets(theme)
+        rendered = json.dumps(
+            [display, theme, self.renderer.versions[theme]], ensure_ascii=False
+        )
+
+        def card_path(image_id):
+            key = uuid5(NAMESPACE_URL, rendered + str(image_id)).hex
+            return cache.root / "fortune" / f"{record.id}-{key}.png"
+
+        path = card_path(history_id)
+        if get_config().cache.fortune and cache.acquire(path):
+            try:
+                return await asyncio.to_thread(path.read_bytes)
+            finally:
+                cache.release(path, keep=True)
+
+        image = None
+        if history_id is not None:
+            history = await (
+                await db.connection.execute(
+                    "SELECT image_url FROM setu_history WHERE id=?", (history_id,)
+                )
+            ).fetchone()
+            async with httpx.AsyncClient(
+                timeout=HTTP_TIMEOUT_SECONDS, follow_redirects=True
+            ) as client:
+                response = await client.get(history["image_url"])
+                response.raise_for_status()
+                image = response.content
+        else:
+            settings = SessionConfigService(get_config()).resolve(record.session_id)
+            tags = (
+                json.loads(pref["tags"])
+                if pref["tags"] is not None
+                else [
+                    tag.strip()
+                    for tag in settings.fortune_tags.split(",")
+                    if tag.strip()
+                ]
+            )
+            r18 = settings.fortune_content_mode == "r18" or (
+                settings.fortune_content_mode == "mix" and random.random() > 0.5
+            )
+            ids = []
+
+            async def record_images(images):
+                ids.extend(
+                    await db.add_history(
+                        record.session_id, record.user_id, images, tags
+                    )
+                )
+
+            payload = await get_provider().fetch_and_download(
+                SetuRequest.from_user_input(
+                    count=1,
+                    tags=tags,
+                    r18=r18,
+                    exclude_ai=get_config().exclude_ai,
+                    max_replenish_rounds=get_config().max_replenish_rounds,
+                ),
+                on_images=record_images,
+            )
+            try:
+                if payload.items:
+                    item = payload.items[0]
+                    image = (
+                        item
+                        if isinstance(item, bytes)
+                        else await asyncio.to_thread(item.read_bytes)
+                    )
+                    image_index = next(
+                        i
+                        for i, metadata in enumerate(payload.images)
+                        if metadata.image_url == payload.urls[0]
+                    )
+                    history_id = ids[image_index]
+                    await get_fortune_repo().attach_image(record.id, history_id)
+                    path = card_path(history_id)
+            finally:
+                for file in payload.file_paths:
+                    cache.release(file, keep=get_config().cache.setu)
+        encoded = None
+        if image:
+            with Image.open(BytesIO(image)) as decoded:
+                mime = Image.MIME[decoded.format]
+            encoded = f"data:{mime};base64," + base64.b64encode(image).decode()
+        result = await self.renderer.render_to_image(
+            {
+                "username": username,
+                "date_str": record.date_str,
+                "stars": record.star_count,
+            },
+            encoded,
+            theme,
+        )
+        if get_config().cache.fortune:
+            async with db.lock:
+                current = await (
+                    await db.connection.execute(
+                        "SELECT stars,setu_history_id FROM daily_fortune WHERE id=?",
+                        (record.id,),
+                    )
+                ).fetchone()
+                if (
+                    current is not None
+                    and current["stars"] == record.star_count
+                    and current["setu_history_id"] == history_id
+                ):
+                    await asyncio.to_thread(cache.write, path, result)
+        return result
+
+    async def _llm_get_fortune(self, event):
+        return await self._get(event)
+
+    async def _llm_refresh_fortune(self, event):
+        return await self.refresh(event)
+
+    async def _llm_refresh_all_fortune(self, event):
+        return await self.refresh_all(event)
+
+    async def _llm_refresh_group_fortune(self, event):
+        await self._access(event)
+        allowed, message = PermissionService.require_admin(event)
+        if not allowed:
+            raise PermissionError(message)
+        if not event.get_group_id():
+            raise ValueError("请在群聊中刷新本群运势。")
+        count = await FortuneService(get_fortune_repo()).refresh_group_fortunes(
+            get_event_session_identity(event).session_id
+        )
+        return f"已清理本群今天的 {count} 条运势。"
 
 
-def unregister_llm_tools() -> None:
-    """Unregister Fortune LLM tools."""
-    tool_names = [
-        "get_today_fortune",
-        "refresh_my_fortune",
-        "refresh_group_fortune",
-        "refresh_all_fortune",
-    ]
+TOOL_HANDLERS = {
+    "get_today_fortune": "_llm_get_fortune",
+    "refresh_my_fortune": "_llm_refresh_fortune",
+    "refresh_group_fortune": "_llm_refresh_group_fortune",
+    "refresh_all_fortune": "_llm_refresh_all_fortune",
+}
 
-    for name in tool_names:
-        with contextlib.suppress(AttributeError, RuntimeError):
+
+def register_llm_tools(handler):
+    for name, method in TOOL_HANDLERS.items():
+        llm_tools.add_func(
+            name=name,
+            func_args=[],
+            desc={
+                "get_today_fortune": "发送当前会话中的个人今日运势。",
+                "refresh_my_fortune": "按用户明确要求刷新本人的今日运势。",
+                "refresh_group_fortune": "按管理员明确要求刷新本群今日运势。",
+                "refresh_all_fortune": "按超级管理员明确要求刷新全局今日运势。",
+            }[name],
+            handler=getattr(handler, method),
+        )
+        llm_tools.get_func(name).handler_module_path = __name__
+
+
+def unregister_llm_tools():
+    for name in TOOL_HANDLERS:
+        if llm_tools.get_func(name) is not None:
             llm_tools.remove_func(name)

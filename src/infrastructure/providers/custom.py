@@ -12,6 +12,7 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
+from ...application.setu.dto import ImageMetadata
 from ...domain import HTTP_TIMEOUT_SECONDS
 from ...shared import get_logger
 from .base import DownloadingSetuImageProvider
@@ -183,30 +184,26 @@ class CustomApiProvider(DownloadingSetuImageProvider):
         if not json_path or not isinstance(data, (dict, list)):
             return []
 
-        try:
-            # 简单的 JSON 路径解析
-            # 支持 $.data[*].url 或 $.images 等形式
-            result = self._get_value_by_path(data, json_path)
+        # 简单的 JSON 路径解析
+        # 支持 $.data[*].url 或 $.images 等形式
+        result = self._get_value_by_path(data, json_path)
 
-            if isinstance(result, str):
-                return [result]
-            elif isinstance(result, list):
-                urls = []
-                for item in result:
-                    if isinstance(item, str):
-                        urls.append(item)
-                    elif isinstance(item, dict):
-                        # 尝试从字典中提取 URL
-                        url = item.get("url") or item.get("image") or item.get("link")
-                        if url:
-                            urls.append(url)
-                return urls
-            elif isinstance(result, dict):
-                url = result.get("url") or result.get("image") or result.get("link")
-                return [url] if url else []
-
-        except Exception as e:
-            logger.error("JSON 路径解析失败: %s", e)
+        if isinstance(result, str):
+            return [result]
+        elif isinstance(result, list):
+            urls = []
+            for item in result:
+                if isinstance(item, str):
+                    urls.append(item)
+                elif isinstance(item, dict):
+                    # 尝试从字典中提取 URL
+                    url = item.get("url") or item.get("image") or item.get("link")
+                    if url:
+                        urls.append(url)
+            return urls
+        elif isinstance(result, dict):
+            url = result.get("url") or result.get("image") or result.get("link")
+            return [url] if url else []
 
         return []
 
@@ -321,40 +318,54 @@ class CustomApiProvider(DownloadingSetuImageProvider):
         # URL 中包含图片相关特征
         return has_ext or has_host or "/img" in url_lower or "/image" in url_lower
 
-    async def fetch_image_urls(
+    def _metadata(self, data, urls, api_url):
+        found = {}
+
+        def visit(node, source=None, tags=()):
+            if isinstance(node, dict):
+                source = node.get("source_url") or node.get("source") or source
+                if node.get("pid"):
+                    source = f"https://www.pixiv.net/artworks/{node['pid']}"
+                tags = node.get("tags") or tags
+                if isinstance(tags, str):
+                    tags = (tags,)
+                for value in node.values():
+                    visit(value, source, tags)
+            elif isinstance(node, list):
+                for value in node:
+                    visit(value, source, tags)
+            elif isinstance(node, str) and node in urls:
+                found[node] = ImageMetadata(node, source or api_url, tuple(tags))
+
+        visit(data)
+        return [found[url] for url in urls]
+
+    async def fetch_images(
         self,
         num: int,
         tags: list[str],
         r18: bool,
         exclude_ai: bool = True,
-    ) -> list[str]:
+    ) -> list[ImageMetadata]:
         """从自定义 API 获取图片 URL 列表。"""
-        try:
-            url, body, original_host = await self._build_url(num, tags, r18, exclude_ai)
-
-            if not url:
-                logger.error("自定义 API URL 未配置")
-                return []
-
-            timeout = self.api_config.get("timeout", HTTP_TIMEOUT_SECONDS)
-            headers = _sanitize_headers(self.api_config.get("headers", {}))
-            if original_host:
-                headers["Host"] = original_host
-
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                if body:
-                    resp = await client.post(url, json=body, headers=headers)
-                else:
-                    resp = await client.get(url, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-
-                urls = self._parse_response(data)
-                return urls[:num]  # 限制数量
-
-        except ValueError as e:
-            logger.error("自定义 API URL 校验失败: %s", e)
-            return []
-        except Exception as e:
-            logger.error("自定义 API 请求失败: %s", e)
-            return []
+        url, body, original_host = await self._build_url(num, tags, r18, exclude_ai)
+        if not url:
+            raise ValueError("请先配置自定义 API 地址。")
+        timeout = self.api_config.get("timeout", HTTP_TIMEOUT_SECONDS)
+        headers = _sanitize_headers(self.api_config.get("headers", {}))
+        if original_host:
+            headers["Host"] = original_host
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            if body:
+                resp = await client.post(url, json=body, headers=headers)
+            else:
+                resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            urls = self._parse_response(data)
+            api_url = (
+                str(httpx.URL(url).copy_with(host=original_host))
+                if original_host
+                else url
+            )
+            return self._metadata(data, urls[:num], api_url)

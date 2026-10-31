@@ -23,11 +23,6 @@
   <table>
     <tr>
       <td align="center">
-        <img src="https://raw.githubusercontent.com/FlanChanXwO/astrbot_plugin_setu/master/assets/img_ob_preview.webp" width="400" alt="色图卡片预览1"/>
-        <br/>
-        <sub>HTML 卡片包装提高成功率</sub>
-      </td>
-      <td align="center">
         <img src="https://raw.githubusercontent.com/FlanChanXwO/astrbot_plugin_setu/master/assets/merge_send_preview.webp" width="400" alt="色图卡片预览2"/>
         <br/>
         <sub>多图合并转发</sub>
@@ -52,12 +47,11 @@
 
 - **多 API 支持** - Lolicon、SexNyan、自定义 API 等
 - **分层架构** - `application` / `domain` / `infrastructure` / `shared` 清晰分离
-- **HTML 卡片包装** - 普通发送失败后尝试卡片发送
 - **LLM 工具调用** - 可通过大模型自动获取色图
 - **标签搜索** - 支持多标签、中文标签、模糊匹配
 - **多种色图发送模式** - 直接发送、合并转发、文件封装
 - **随机本子文件** - 获取 API 返回的全部页图，可配置封装为 PDF 或 ZIP；OneBot/NapCat 普通文件消息可按统一可恢复队列延迟撤回
-- **防审核机制** - HTML 卡片 fallback、NapCat 流式上传、延迟撤回、Docx 封装
+- **防审核机制** - NapCat 流式上传、延迟撤回、Docx 封装
 - **性能优化** - 磁盘缓存、自动补图、httpx、可观测下载重试
 - **多平台适配** - 支持 AstrBot 多平台发送；合并转发、流式上传和撤回能力因平台而异
 
@@ -90,8 +84,8 @@
 来一份色图
 来三份白丝瑟图
 来9份白丝 萝莉色图
-/setu 白丝 萝莉
-/setu 3 白丝
+/色图 1 白丝 萝莉
+/色图 3 白丝
 来份本子
 /随机本子
 ```
@@ -107,9 +101,11 @@
 
 在 AstrBot 插件配置中修改全局参数、`safety` 黑白名单和 `session_configs` 会话覆盖，保存后重载插件生效。插件不再提供 Pages 页面、配置命令或配置修改工具。
 
-业务操作使用 `/今日运势` 和 `/运势刷新 [我|本群|全局]`。开启 `fortune.allow_user_refresh` 后普通用户可刷新自己的运势；本群刷新仍需管理员，全局刷新仍需超级管理员。运势关闭后，相关入口和后台预生成都停用。
+使用 `/今日运势` 查看运势；`/刷新运势` 刷新本人，管理员可用 `/刷新运势@用户` 指定目标；`/刷新全局运势` 由超级管理员清理当天全部运势。开启 `fortune.allow_user_refresh` 后普通用户也可刷新本人。
 
-“图片获取”的更多配置可关闭 LLM 工具或短语触发，也可用图片、本子、运势三种短语模板替换默认说法。命令不受这两个开关影响。“发送与撤回”的更多配置可关闭随机本子，阻止下载。独立的 `r18` 标签只影响本次图片请求，不能绕过当前会话的 SFW 分级。
+通过 `/运势偏好 主题 arona`、`/运势偏好 标签 猫耳 白发` 设置个人偏好。同一用户在各会话共享偏好，每个会话的每日星级独立保存。主题可选 `endfield`、`arona`、`persona5`、`minecraft`、`minimal` 和 `random`。
+
+`setu_general.commands_enabled`、`natural_language_enabled`、`llm_tools_enabled` 分别控制普通命令、短语入口和工具注册，保存后重载生效。
 
 ### LLM 工具调用
 
@@ -140,18 +136,17 @@
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `delivery.html_card_strategy` | 图片卡片发送方式（never / fallback / always） | `fallback` |
 | `platform_transports` | 平台传输模板列表，可添加 NapCat 模板 | `[]` |
 | `auto_revoke_targets` | 自动撤回内容列表（`setu` / `fortune` / `doujinshi`） | `["doujinshi"]` |
 | `auto_revoke_scope` | 自动撤回范围（none / sfw / r18 / all） | `none` |
 | `auto_revoke_delay` | 已启用内容共用的自动清理延迟（秒，`0` 全部关闭） | `30` |
 | `r18_docx_mode` | R18 是否使用 Docx 封装 | `true` |
 
-图片下载遇到短暂网络错误时会先按内部默认的 3 轮对同一 URL 做确认重试；发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时会标记为可能仍在送达，不会立刻触发降级重复发图。旧版 `auto_revoke_r18` 会在启动时迁移为 `auto_revoke_scope`，迁移后不再作为公开配置项展示。
+图片下载遇到短暂网络错误时会先按内部默认的 3 轮对同一 URL 做确认重试；发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时会标记为可能仍在送达，不会立刻触发降级重复发图。
 
 NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；若 AstrBot 与 NapCat 共享同一图片目录，可在 `platform_transports` 添加 NapCat 模板，将共享目录加入 `local_file_allowed_roots` 并把 `local_file_mode` 设为 `always` 或 `fallback`，让直发模式通过 raw OneBot `file://` 路径绕过 AstrBot 标准链路的 base64 转换。
 
-`auto_revoke_targets` 是单一内容列表，默认只含 `doujinshi`，因此色图和今日运势默认不撤回；按需加入 `setu` 或 `fortune`。色图加入后还须命中 `auto_revoke_scope`。三类内容共享 `auto_revoke_delay` 和 OneBot 可恢复队列；设置 `1800` 即为 30 分钟，设为 `0` 会关闭全部自动清理。随机本子无论选择 PDF 还是 ZIP 都以普通文件消息发送；OneBot/NapCat 群聊发送成功后会直接登记消息 ID，到期调用 `delete_msg`，不再反查群文件。所有任务保存于插件运行数据目录的 `revoke_tasks.json`，插件重启后仍按原到期时间继续执行。
+`auto_revoke_targets` 是单一内容列表，默认只含 `doujinshi`，因此色图和今日运势默认不撤回；按需加入 `setu` 或 `fortune`。色图加入后还须命中 `auto_revoke_scope`。三类内容共享 `auto_revoke_delay` 和 OneBot 可恢复队列；设置 `1800` 即为 30 分钟，设为 `0` 会关闭全部自动清理。随机本子无论选择 PDF 还是 ZIP 都以普通文件消息发送；OneBot/NapCat 群聊发送成功后会直接登记消息 ID，到期调用 `delete_msg`，不再反查群文件。所有任务保存于 `db.sqlite` 的 `setu_schedule_task` 表，插件重启后仍按原到期时间继续执行。
 
 ### 模板覆盖
 
@@ -162,7 +157,6 @@ NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；�
 | `tag_alias_templates` | 标签别名映射 |
 | `session_configs` | 按完整会话标识覆盖色图、发送与运势背景参数 |
 
-旧卡片配置会迁入 `delivery.html_card_strategy`，默认仍为 `fallback`。多图片源固定轮流使用，运势使用全局图片源，不再单独配置。
 
 ### 访问控制
 
@@ -170,7 +164,9 @@ NapCat stream 上传的分块内容按 NapCat 协议仍为 base64 字符串；�
 
 会话模板支持继承全局；运势模板的“单独设置背景标签”开启后，留空标签表示清除全局标签限制。详见[配置参考](./docs/usage/configuration.md#会话级覆盖)。
 
-升级时会将旧会话数据一次性迁入插件配置。旧用户／群组裸 ID 权限无法推导完整 SID，存在非空名单或限制模式时会报错，需在插件配置中明确填写新的 SID 权限规则；原运行文件保留。迁移失败会阻止初始化；迁移完成后删除模板或清空名单不会恢复旧记录。旧自定义消息和调优参数停止生效，内置提示固定启用。
+配置按当前结构解析：未知键删除，非法值恢复默认，识别失败的模板项丢弃。旧配置键直接移除。**非法权限配置会恢复默认，访问范围可能回到开放状态，请升级后检查 `safety`。**
+
+运行数据统一存于 `plugin_data/astrbot_plugin_setu/`，仅包含 `db.sqlite` 和 `cache/`。色图、运势和本子缓存默认关闭，可分别开启；三类缓存与临时文件共用 512 MiB 上限。运势和图片历史保留包含当天的 30 天。首次启动执行数据库迁移，提交成功后清理旧目录、缓存和废弃 JSON；缺少完整 SID 的旧运势会被清理。迁移说明见[升级与恢复](docs/usage/configuration.md#升级与恢复)。
 
 ---
 

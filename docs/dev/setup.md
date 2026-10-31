@@ -19,10 +19,10 @@ AstrBot/data/plugins/astrbot_plugin_setu
 ```text
 assets/      # 静态资源与预览图
 src/         # DDD 主代码
-tests/       # 单元与集成测试
+tests/       # 集成测试
 docs/        # 项目、开发、使用文档
 skills/      # 给 AI agent 的 skill
-templates/   # 运势卡片 HTML 模板与字体资源
+src/template/ # 运势 Jinja2 模板、文案和主题资源
 ```
 
 ## 运行与调试原则
@@ -43,7 +43,7 @@ python /path/to/AstrBot/main.py
 
 本插件统一通过 `StarTools.get_data_dir(self.name)` 访问运行时数据目录。
 
-`tests/conftest.py` 会在导入 `astrbot.core` 之前固定 `ASTRBOT_ROOT`，避免 AstrBot 默认以 `os.getcwd()` 作为根目录，从而在插件目录下创建 `data/cmd_config.json` 和 `data/t2i_templates/`。
+`tests/conftest.py` 会在导入 `astrbot.core` 之前把 `ASTRBOT_ROOT` 指向临时目录，避免 AstrBot 默认以 `os.getcwd()` 作为根目录，从而在插件目录下创建 `data/cmd_config.json` 和 `data/t2i_templates/`。
 
 ### 启动结构
 

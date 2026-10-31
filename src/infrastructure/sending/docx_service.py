@@ -4,22 +4,27 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from docx import Document
 from PIL import Image
+
+from ...shared.cache import get_cache
 
 
 class R18DocxService:
     """按输入顺序将图片写入插件发送缓存。"""
 
     def __init__(self, data_dir: Path | str) -> None:
-        self.root = Path(data_dir) / "send_cache"
+        self.root = Path(data_dir) / "cache" / "setu"
 
     def create_docx_with_images(self, images: list[bytes], tags: list[str]) -> Path:
+        from docx import Document
+
         if not images:
             raise ValueError("DOCX requires at least one image")
         self.root.mkdir(parents=True, exist_ok=True)
         path = self.root / f"r18-{uuid4().hex}.docx"
         partial = path.with_suffix(".docx.part")
+        cache = get_cache()
+        cache.pin(partial)
         try:
             document = Document()
             document.core_properties.keywords = ", ".join(tags)
@@ -48,9 +53,13 @@ class R18DocxService:
                         width=int(image.width * scale),
                         height=int(image.height * scale),
                     )
-            document.save(partial)
-            partial.replace(path)
+            with cache.open(partial) as output:
+                document.save(output)
+            with cache.lock:
+                partial.replace(path)
+                cache.release(partial, keep=True)
+                cache.pin(path)
             return path
         except Exception:
-            partial.unlink(missing_ok=True)
+            cache.release(partial)
             raise

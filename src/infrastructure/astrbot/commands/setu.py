@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -21,10 +20,12 @@ from ....application.setu.tag_resolution import (
 from ....domain.access_control.service import AccessControlService
 from ....domain.setu import SetuRequest
 from ....shared import get_logger
+from ....shared.cache import get_cache
 from ....shared.config.messages import MessagesConfig
-from ... import get_access_control_repo, get_provider
 from ...doujinshi import DoujinshiService
-from ...providers import init_provider_from_config
+from ...persistence import get_access_control_repo
+from ...persistence.database import get_database
+from ...providers import get_provider
 from ...sending import (
     DirectSendStrategy,
     build_doujinshi_file_chain,
@@ -39,7 +40,7 @@ logger = get_logger()
 
 
 def _platform_name(event: AstrMessageEvent) -> str | None:
-    """返回事件平台名称，并兼容测试替身的最小接口。"""
+    """返回事件平台名称。"""
     name = getattr(getattr(event, "platform", None), "name", None)
     if isinstance(name, str) and name:
         return name
@@ -54,44 +55,20 @@ def _platform_name(event: AstrMessageEvent) -> str | None:
 class RateLimiter:
     """Simple rate limiter to prevent concurrent requests from same user."""
 
-    MAX_LOCKS = 1000
-    LOCK_TTL = 120  # Auto-release locks after 120s
-
     def __init__(self) -> None:
         self._locks: dict[str, asyncio.Lock] = {}
-        self._lock_times: dict[str, float] = {}
 
     async def acquire(self, event: AstrMessageEvent) -> bool:
-        """Acquire lock for event. Returns True if acquired, False if already processing."""
-        key = f"user:{event.get_sender_id()}"
-        lock = self._locks.setdefault(key, asyncio.Lock())
-
-        # Auto-release stale locks (safety net for leaked locks)
-        if lock.locked():
-            acquire_time = self._lock_times.get(key, 0)
-            if time.monotonic() - acquire_time > self.LOCK_TTL:
-                try:
-                    lock.release()
-                except RuntimeError:
-                    pass
-
-        if lock.locked():
+        key = str(event.get_sender_id())
+        if key in self._locks:
             return False
+        lock = asyncio.Lock()
+        self._locks[key] = lock
         await lock.acquire()
-        self._lock_times[key] = time.monotonic()
         return True
 
     async def release(self, event: AstrMessageEvent) -> None:
-        """Release lock for event and evict stale entries."""
-        key = f"user:{event.get_sender_id()}"
-        if key in self._locks:
-            self._locks[key].release()
-            self._lock_times.pop(key, None)
-        if len(self._locks) > self.MAX_LOCKS:
-            stale = [k for k, v in self._locks.items() if not v.locked()]
-            for k in stale[: len(stale) // 2]:
-                del self._locks[k]
-                self._lock_times.pop(k, None)
+        self._locks.pop(str(event.get_sender_id())).release()
 
 
 # Module-level rate limiter singleton
@@ -140,6 +117,7 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
@@ -147,6 +125,7 @@ class SetuCommandHandler:
                 event, count, tags, natural=natural
             ):
                 yield result
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 
@@ -157,11 +136,13 @@ class SetuCommandHandler:
         if not await _rate_limiter.acquire(event):
             if result := self._plain(event, self._message("rate_limited")):
                 yield result
+            event.stop_event()
             return
 
         try:
             async for result in self._handle_random_doujinshi_internal(event, tags):
                 yield result
+            event.stop_event()
         finally:
             await _rate_limiter.release(event)
 
@@ -186,9 +167,6 @@ class SetuCommandHandler:
                 yield result
             return
 
-        if result := self._plain(event, self._message("doujinshi_fetching")):
-            yield result
-
         if self._doujinshi_service is None:
             logger.error(
                 "Doujinshi service is unavailable before plugin initialization"
@@ -197,6 +175,8 @@ class SetuCommandHandler:
                 yield result
             return
 
+        generated = None
+        pending = False
         try:
             tags = resolve_user_tags(raw_tags, getattr(config, "tag_alias", ""))
             generated = await self._doujinshi_service.fetch_random_file(
@@ -233,6 +213,7 @@ class SetuCommandHandler:
                     send_result = await DirectSendStrategy(
                         plugin_context
                     ).send_with_status(event, chain, auto_revoke=True)
+                    pending = send_result.pending
                     if send_result.accepted:
                         scheduled_count = 0
                         for message_id in send_result.message_ids:
@@ -260,11 +241,21 @@ class SetuCommandHandler:
                                 revoke_delay,
                             )
                         return
-            yield event.chain_result(chain)
-        except Exception:
+            send_result = await DirectSendStrategy(plugin_context).send_with_status(
+                event, chain
+            )
+            pending = send_result.pending
+            if not send_result.accepted:
+                raise RuntimeError(send_result.reason)
+        except Exception as exc:
             logger.exception("random doujinshi command failed")
-            if result := self._plain(event, self._message("doujinshi_failed")):
+            if result := self._plain(
+                event, self._message("doujinshi_failed") + f"：{exc}"
+            ):
                 yield result
+        finally:
+            if generated is not None and not pending:
+                get_cache().release(generated.path, keep=config.cache.doujinshi)
 
     async def _handle_setu_command_internal(
         self, event: AstrMessageEvent, count: str, tags: str, *, natural: bool = False
@@ -319,9 +310,9 @@ class SetuCommandHandler:
             logger.warning("setu command timeout (>60s)")
             if result := self._plain(event, self._message("fetch_timeout")):
                 yield result
-        except Exception:
-            logger.exception("setu command failed")
-            if result := self._plain(event, self._message("fetch_failed")):
+        except Exception as exc:
+            logger.exception("色图请求失败")
+            if result := self._plain(event, f"获取图片失败：{exc}"):
                 yield result
 
     # ==================== LLM Tool Handlers ====================
@@ -347,7 +338,6 @@ class SetuCommandHandler:
         if explicit_r18 and effective_mode == "sfw":
             return self._message("r18_not_allowed")
         try:
-            init_provider_from_config(config)
             provider = get_provider()
             request = SetuRequest.from_user_input(
                 count=count,
@@ -356,7 +346,12 @@ class SetuCommandHandler:
                 exclude_ai=config.exclude_ai,
                 max_replenish_rounds=config.max_replenish_rounds,
             )
-            payload = await provider.fetch_and_download(request)
+            payload = await provider.fetch_and_download(
+                request,
+                on_images=lambda images: self._record_history(
+                    event, images, parsed_tags
+                ),
+            )
             from ...sending import ImageSender
 
             sender = ImageSender(config, logger, docx_service=self._docx_service)
@@ -370,9 +365,10 @@ class SetuCommandHandler:
                     )
             if not accepted:
                 return self._message("send_failed")
-            return f"Successfully fetched {payload.count} images"
-        except Exception:
-            return self._message("fetch_failed")
+            return "ok"
+        except Exception as exc:
+            logger.exception("色图请求失败")
+            return self._message("fetch_failed") + f"：{exc}"
 
     # ==================== Helper Methods ====================
 
@@ -387,13 +383,10 @@ class SetuCommandHandler:
         self, event: AstrMessageEvent, num: int, tags: list[str], is_r18: bool, config
     ) -> AsyncGenerator[Any, None]:
         """Fetch images and send to user."""
-        fetching_message = self._message("fetching")
-        if fetching_message:
-            yield event.plain_result(fetching_message)
-
-        init_provider_from_config(config)
         provider = get_provider()
-        use_case = GetSetuImagesUseCase(provider)
+        use_case = GetSetuImagesUseCase(
+            provider, lambda images: self._record_history(event, images, tags)
+        )
 
         try:
             result = await use_case.execute(num, tags, is_r18)
@@ -404,7 +397,7 @@ class SetuCommandHandler:
             return
 
         payload = result.payload
-        if payload is None:
+        if payload.is_empty:
             tags_info = f"标签: {', '.join(tags)}" if tags else ""
             text = self._message("no_result", tags_info=tags_info)
             if result := self._plain(event, text):
@@ -416,6 +409,14 @@ class SetuCommandHandler:
         sender = ImageSender(config, logger, docx_service=self._docx_service)
         async for send_result in sender.send_images(payload, event):
             yield send_result
+
+    async def _record_history(self, event, images, tags):
+        await get_database().add_history(
+            get_event_session_identity(event).session_id,
+            str(event.get_sender_id()),
+            images,
+            tags,
+        )
 
     async def _get_effective_content_mode(self, event: AstrMessageEvent) -> str:
         """Get effective content mode for session."""
@@ -503,24 +504,11 @@ def register_llm_tools(handler: SetuCommandHandler) -> None:
         ),
     ]
 
-    for name, handler, args, desc in tools:
-        try:
-            llm_tools.add_func(name=name, func_args=args, desc=desc, handler=handler)
-            tool = llm_tools.get_func(name)
-            if tool:
-                tool.handler_module_path = __name__
-        except (AttributeError, RuntimeError):
-            pass
+    for name, method, args, desc in tools:
+        llm_tools.add_func(name=name, func_args=args, desc=desc, handler=method)
+        llm_tools.get_func(name).handler_module_path = __name__
 
 
 def unregister_llm_tools() -> None:
-    """Unregister Setu LLM tools."""
-    tool_names = [
-        "get_setu_image",
-    ]
-
-    for name in tool_names:
-        try:
-            llm_tools.remove_func(name)
-        except (AttributeError, RuntimeError):
-            pass
+    if llm_tools.get_func("get_setu_image") is not None:
+        llm_tools.remove_func("get_setu_image")

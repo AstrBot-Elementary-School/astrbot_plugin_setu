@@ -70,11 +70,11 @@
 - **控制单帧体积**：
   - 新增 `compress_enabled`（默认 `false`）和 `compress_max_mb`（默认 4）配置项，开启后发送前对超限图片压缩（JPEG 质量阶梯 + 必要时缩放）。
   - 分批逻辑：根据 base64 估算值和 40 MiB 安全线自动分批；`direct` 模式每批 ≤8 张且 ≤40 MiB，`forward` 模式每批仅受 40 MiB 约束。
-- **forward 死路规避**：`_send_one_batch` 的 stream 回退仅在 `effective_mode != "forward"` 时启用；forward 失败跳过 stream，直接尝试 HTML 卡片回退。
+- **forward 死路规避**：`_send_one_batch` 的 stream 回退仅在 `effective_mode != "forward"` 时启用；forward 失败保留实际发送错误。
 - **`uin` 校验**：`ForwardSendStrategy._build_forward_nodes` 中 `event.get_self_id()` 为空时记 warning，保留空字符串避免序列化崩溃。
 - **direct + 本地 file:// 直通（可选）**：新增 `delivery.platform_transports`，其中 NapCat 模板包含 `local_file_mode`（默认 `disabled`）和 `local_file_allowed_roots`。仅 OneBot/NapCat 类平台、直发模式、真实文件且路径位于发送缓存目录或显式共享目录时，才走 raw OneBot `file://` 直通。
 - **stream 分块固定**：NapCat stream 单块原始字节大小为 64 KiB，`chunk_data` 仍为 base64 字符串。传输模式和本地路径白名单继续通过平台模板设置。
-- **自动撤回需要 message_id**：`auto_revoke_targets` 包含 `setu` 且 `auto_revoke_scope` 命中时，OneBot/NapCat 类平台的 direct、HTML fallback、stream、file:// 直通、forward 和 R18 Docx 会优先走 raw OneBot action 以提取 `message_id`。目标列表包含 `fortune` 时，今日运势也会走同一消息撤回队列；包含 `doujinshi` 时，本子 PDF/ZIP 普通文件也会直接取得其消息 ID，而非反查群文件。拿不到 id、平台不支持 `delete_msg` 或删除失败时只记录 warning，不触发重复发送或阻断发图；成功登记的撤回任务写入 `revoke_tasks.json`，重启后仍会恢复。
+- **自动撤回需要 message_id**：`auto_revoke_targets` 包含 `setu` 且 `auto_revoke_scope` 命中时，OneBot/NapCat 类平台的 direct、stream、file:// 直通、forward 和 R18 Docx 会优先走 raw OneBot action 以提取 `message_id`。目标列表包含 `fortune` 时，今日运势也会走同一消息撤回队列；包含 `doujinshi` 时，本子 PDF/ZIP 普通文件也会直接取得其消息 ID，而非反查群文件。拿不到 id、平台不支持 `delete_msg` 或删除失败时只记录 warning，不触发重复发送或阻断发图；成功登记的撤回任务写入 `db.sqlite` 的 `setu_schedule_task` 表，重启后仍会恢复。
 - **raw 文件 URI**：本子普通文件直发绕过 aiocqhttp 常规消息段适配时，会将绝对本地路径转换为 `file://` URI；否则 NapCat 可能返回消息 ID，但 QQ 客户端打开附件时显示下载失败。
 
 **未实现（计划或待验证）：**
@@ -94,8 +94,6 @@
 
 更多 sender 结构见 `architecture.md` 的「核心运行链路」。
 
-## Base64 图片与 HTML 回退
+## Base64 图片
 
-运势渲染或 `Image.fromBytes()` 生成的 `base64://` 图片会直接解码用于体积估算、压缩和 HTML 回退。HTTP/HTTPS 等非本地引用跳过本地文件检查；普通路径和本地 `file://` URI 继续支持，URI 中的转义字符按路径解码。
-
-HTML 回退默认使用 AstrBot 配置的 t2i 服务，将原图内嵌为卡片重新渲染，沿用 `html_card_padding`。每张图片单独渲染，`html_card_gap` 不参与单图布局。无效 Base64 和本地读取失败会记录具体异常；无可用图片时沿用发送失败反馈。
+运势渲染或 `Image.fromBytes()` 生成的 `base64://` 图片直接解码用于体积估算和压缩。普通路径与本地 `file://` URI 继续支持，URI 中的转义字符按路径解码。普通图片发送已移除 HTML 卡片包装，t2i 只用于运势渲染。

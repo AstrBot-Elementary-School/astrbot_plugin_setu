@@ -1,148 +1,50 @@
-# 架构全景
+# 架构与数据归属
 
-## 分层结构
+`main.py` 负责 AstrBot 原生命令、子命令、注册开关和生命周期。业务按 `domain`、`application`、`infrastructure`、`shared` 分层；模板位于 `src/template/`。
 
-项目按 DDD 分层组织：
+## 启动和卸载
+
+启动时按当前 schema 清理配置并写回，创建容量缓存，连接统一数据库并执行迁移；随后初始化 provider、SID 权限仓储、撤回调度和命令处理器。运势关闭时跳过其处理器和渲染器。普通命令、短语、LLM 工具分别按开关注册。
+
+初始化失败释放本次创建的资源并保留完整错误。卸载停止内存调度、移除工具、关闭数据库并清除插件上下文；待执行任务保存在数据库供下次恢复。
+
+## 图片与发送
+
+provider 返回逐图 `ImageMetadata(image_url, source_url, tags)`，下载结果保留顺序。普通请求和运势取图都记录图片历史：上游标签优先，否则使用请求标签；来源为原图源地址，缺失时记录调用 API，图片地址完整保留反代。
+
+图片通过直接发送或合并转发发送，支持既有 NapCat 流式与受信任本地路径传输。R18 DOCX 按需导入 `python-docx`，本子生成 PDF 或 ZIP，以普通文件发送。发送确认待定时保留本地文件并记录状态，避免重复发送或提前删除。
+
+运势使用 AstrBot t2i 渲染；普通图片的 HTML 包装路线已移除。
+
+## 运势与偏好
+
+每日运势由 `FortuneService` 和 `SQLiteFortuneRepo` 保存星级，唯一键为 `(session_id, user_id, date)`，背景通过 `setu_history_id` 关联。偏好以框架返回的 `user_id` 为主键，跨群聊与私聊共享。
+
+模板输入为昵称、日期、星级、图片。主题的 `text.json` 管标题、正文、tip 和辅助文案，`index.css` 管样式；渲染器只装配所选主题及其字体。主题包括 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`，默认 `endfield`。
+
+## 持久化与缓存
 
 ```text
-src/
-  domain/          # 实体、值对象、领域规则
-  application/     # 用例、DTO、应用服务与端口接口
-  infrastructure/  # 配置、持久化、provider、sender、AstrBot 适配
-  shared/          # 配置模型、日志、发送缓存
-templates/         # 运势卡片 HTML 模板与字体
-tests/             # 单元与集成测试
+plugin_data/astrbot_plugin_setu/
+├── db.sqlite
+└── cache/
+    ├── fortune/
+    ├── setu/
+    └── doujinshi/
 ```
 
-## 启动结构
+- `daily_fortune`：`id, session_id, user_id, date, stars, setu_history_id`。
+- `user_preference`：`user_id, theme, tags`。
+- `setu_history`：`id, session_id, user_id, date, tags, source_url, image_url`。
+- `setu_schedule_task`：`id, session_id, target, due_at, payload`，payload 为当前执行流程需要的目标数据。
+- `migration`：`version, name, applied_at`。
 
-- `main.py`
-  - 插件生命周期装饰器
-  - 聊天命令入口和路由
-  - LLM tool 注册
-  - 不承载业务逻辑编排
+运势和图片历史保留包含当天的 30 天，过期历史仍被有效运势引用时保留。三类文件缓存默认关闭，临时文件与缓存共用 512 MiB 上限；文件使用权与容量检查在同一缓存管理器协调。
 
-- `src/infrastructure/astrbot/`：命令处理器、配置加载与运势渲染。
-- `src/infrastructure/doujinshi/`：随机本子文件生成。
-- `src/infrastructure/sending/`：发送策略、文件发送器与可恢复撤回队列。
-- `src/infrastructure/config/`：配置迁移与自愈。
+迁移脚本使用异步 `upgrade(connection, data_dir)`，事务提交后执行 `cleanup(data_dir)`；后者可重复执行，清理中断后重启继续。已发布脚本保持不变，新增版本用新脚本升级。
 
-`main.py` 负责把 AstrBot 生命周期和命令接进来，`infrastructure/astrbot/` 负责具体适配。业务逻辑在 `application/` 和 `domain/`，不反向侵入入口。
+## 配置
 
-## 核心运行链路
+`SessionConfigService` 按完整 SID 解析会话模板，`ConfigAccessControlRepo` 只读配置权限。个人标签覆盖会话标签和插件默认值，主题覆盖插件默认主题，内容分级继续遵循会话配置。
 
-### 1. Setu 图片获取与发送
-
-1. 命令、可配置短语或 LLM tool 触发，移除独立 `r18` 标记并校验会话分级 → `GetSetuImagesUseCase`
-2. 用例通过 `ImageProviderPort` 获取图片 URL，并在下载暂时失败时按内部默认 3 轮对同一 URL 做确认重试
-3. `ImageSender` 按策略发送：直接发送 / 合并转发 → 可选 NapCat 本地 `file://` 直通 → 确认失败后 NapCat 流式或 HTML 卡片 fallback → Docx 封装
-4. 发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时标记为可能仍在送达，不立即触发 fallback，避免延迟送达后重复发图
-5. 发送结果通过 `resolve_message()` 生成内置提示
-6. 缓存命中时复用本地文件，降低内存压力
-7. 自动撤回内容含 `setu`、命中撤回范围且拿到 `message_id` 时，统一撤回调度器将任务写入 `revoke_tasks.json`，重启后按原到期时间调用 OneBot `delete_msg`
-
-HTML 卡片默认通过 AstrBot 配置的 t2i 服务渲染。体积估算、压缩和卡片回退共用图片引用解析，详见[Base64 图片与 HTML 回退](sending-limits.md#base64-图片与-html-回退)。
-
-### R18 DOCX 文件发送
-
-`SetuCommandHandler` 使用已注入的插件数据目录创建 `R18DocxService`，
-命令与 LLM 注册共用已初始化的 handler，两处 `ImageSender` 入口共用此服务。R18 DOCX 分支通过 `asyncio.to_thread()`
-读取并封装全部图片，`DirectSendStrategy` 发送普通 `Comp.File`，
-WebP 转换保留透明通道；成功、失败及 pending 沿用发送策略状态；取得的消息 ID 进入既有撤回调度。
-生成或发送失败记录完整异常，并通过内置 `r18_docx_failed` 提示后结束分支。
-UUID 文件名隔离并发请求，保存失败删除半成品。文件位于发送缓存目录，
-保留完整 TTL（免容量淘汰），发送后安排 TTL 到期清理；缓存关闭仍可清理 DOCX。
-
-### 2. Fortune 运势生成
-
-1. 运势启用时，命令、短语或 LLM tool 触发 → `FortuneCommandHandler`
-2. `FortuneService` 查询或生成今日运势记录
-3. 有缓存图片时直接复用；否则获取背景、渲染模板、缓存卡片
-4. 渲染失败降级为纯文本
-5. 自动撤回内容含 `fortune` 时，OneBot 发送结果会登记到统一可恢复撤回队列
-
-运势命令与 LLM 工具共用 `ImageSender` 的 `fortune` 内容类型，复用传输与压缩，但独立选择运势撤回策略。图片失败时返回文字运势，确认待定不重复发送。
-
-### 3. 随机本子文件
-
-1. `/随机本子 [标签...]` 与“来份标签本子”通过 `SetuCommandHandler` 复用 Setu 访问控制和标签解析
-2. `DoujinshiService` 将每个解析后的标签作为重复 `tag` 参数调用随机本子 API，校验响应后按配置写入 PDF 或 ZIP；ZIP 成员按页码顺序命名
-3. `build_doujinshi_file_chain()` 不区分平台，始终构造一个带标题文件名的普通 `File`，不创建 `Nodes` 或元数据文本节点
-4. 自动撤回内容含 `doujinshi` 且 OneBot 群聊启用时，`DirectSendStrategy` 通过原始 `send_group_msg` 取得普通文件消息的 `message_id`，统一撤回调度器立即持久化消息任务
-5. 所有新的消息撤回任务共同写入 `StarTools.get_data_dir()` 返回的运行目录；插件重启后按原绝对到期时间调用 OneBot `delete_msg`，不反查群文件
-6. 生成文件写入同一插件运行目录，供 AstrBot 文件发送链路读取
-
-### 4. 访问控制
-
-1. 命令或 tool 触发前检查 `AccessControlService`
-2. Setu 和 Fortune 独立判定
-3. 两种功能模板分别按完整 SID 执行 `none`/`blacklist`/`whitelist` 判定
-4. 不区分用户和群组，群聊规则约束整个会话；受限模式下缺少 SID 的旧运势记录跳过预生成
-5. 黑白名单冲突在配置校验时拒绝，不提供运行态名单修改入口
-
-### 5. 会话配置
-
-1. 插件配置 `session_configs` 声明 `setu`／`fortune` 两种会话模板。
-2. `SessionConfigService` 根据完整 `session_id` 只读解析，未指定的字段继承全局。
-3. 请求、发送和运势背景共用解析规则；不存在运行态配置 CRUD。
-4. 运势记录用可空 `session_id` 保存生成背景的会话上下文，预生成复用该值；缺失时使用全局，不改变用户／日期主键。
-
-## 模块关系图
-
-```mermaid
-flowchart TD
-  A["命令入口 / LLM Tools"] --> B["GetSetuImagesUseCase"]
-  A --> C["FortuneCommandHandler"]
-  A --> D["AccessControlService"]
-  A --> E["SessionConfigService"]
-  A --> O["DoujinshiService"]
-
-  B --> F["ImageProviderPort"]
-  F --> G["LoliconProvider / SexNyanProvider / CustomProvider / MultiProvider"]
-  B --> H["ImageSender"]
-  H --> I["SendStrategy / NapCatStream / SendFilters"]
-  O --> P["PDF / ZIP File"]
-
-  C --> J["FortuneService"]
-  J --> K["FortuneRepository"]
-  C --> L["FortuneRenderer"]
-
-  D --> M["AccessControlRepository"]
-
-  E --> N["插件配置 session_configs"]
-```
-
-短语匹配使用 `domain/setu/triggers.py` 的字面模板；AstrBot 自定义过滤器只让匹配消息进入路由，避免未匹配消息被当作插件指令。工具按开关注册，调用时也检查开关。运势关闭时不初始化仓库，渲染器在实际渲染时创建；撤回队列独立恢复。
-
-## 配置职责
-
-### 插件配置
-
-`_conf_schema.json` 暴露全局业务参数、provider 和平台模板、`safety` 权限模板及 `session_configs` 会话模板。配置模型位于 `src/shared/config/models.py`，保存后按 AstrBot 重载流程生效。
-
-配置界面使用 `show_advanced` 显示开关与 AstrBot 原生条件显示，隐藏项仍参与保存和解析。卡片策略属于 `delivery.html_card_strategy`；多个图片源固定轮流使用，运势复用全局图片源。
-
-缓存、卡片间距、补图轮次和传输分块采用固定默认，不作为隐藏可调设置。提示与占位符集中在 `src/shared/config/messages.py`，不再开放覆盖。
-
-### 首次升级
-
-`legacy_data_migration.py` 校验并迁移会话数据；旧裸 ID 权限无法可靠转换时阻止启动，需用户在插件配置中显式填写 SID 规则替换。全部校验后保存插件配置，最后写完成标记。任何一步失败都会阻止插件初始化，源文件保留。完成后只读插件配置，清空名单和删除模板不重新导入旧值。
-
-## 数据与持久化
-
-- 运势记录：SQLite（`FortuneRepository`）
-- 访问控制：`ConfigAccessControlRepo` 只读插件配置 `safety` 模板列表
-- 会话配置：插件配置 `session_configs` 模板；旧 JSON 仅作一次性迁移来源
-- 发送缓存：磁盘文件（`send_cache.py`）
-- 随机本子 PDF/ZIP：插件数据目录下的 `doujinshi/`
-- 可恢复撤回任务（消息撤回，含本子普通文件消息）：插件数据目录下的 `revoke_tasks.json`
-- 标签别名：配置模板（`tag_alias_templates`）
-
-## 深入章节
-
-- 运势领域细节：`src/domain/fortune/`
-- 标签解析细节：`src/domain/setu/tag_resolver.py`
-- Provider 适配细节：`src/infrastructure/providers/`
-- Sender 策略细节：`src/infrastructure/sending/`
-- 发送链路实测与传输上限：`docs/project/sending-limits.md`
-- 访问控制细节：`src/domain/access_control/`、`src/infrastructure/persistence/access_control_repo.py`
+schema 和 Pydantic 模型共同约束当前配置。未知键删除、非法值恢复默认，旧配置转换已移除。具体字段见[配置参考](../usage/configuration.md)。

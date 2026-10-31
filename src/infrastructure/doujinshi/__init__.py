@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from .service import (
-    GeneratedDoujinshiFile,
-    GeneratedDoujinshiPdf,
     DoujinshiGallery,
     DoujinshiService,
+    GeneratedDoujinshiFile,
 )
 
 __all__ = [
     "GeneratedDoujinshiFile",
-    "GeneratedDoujinshiPdf",
     "DoujinshiGallery",
     "DoujinshiService",
 ]

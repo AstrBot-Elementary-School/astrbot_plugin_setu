@@ -11,14 +11,10 @@ class SendOptions:
     """Value object for send strategy options."""
 
     send_mode: str
-    use_html_card: bool
     auto_revoke: bool
     revoke_delay: int
     r18_docx_mode: bool
     auto_revoke_scope: str = "none"
-    html_padding: int = 6
-    html_gap: int = 6
-    html_card_strategy: str = "fallback"
     napcat_stream_mode: str = "fallback"
     napcat_stream_chunk_kb: int = 64
     napcat_local_file_mode: str = "disabled"
