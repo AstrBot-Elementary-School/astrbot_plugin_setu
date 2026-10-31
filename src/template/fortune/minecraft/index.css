@@ -22,10 +22,9 @@
       background-color: transparent;
       display: flex;
       justify-content: center;
-      align-items: center;
-      min-height: 100vh;
+      align-items: flex-start;
       margin: 0;
-      padding: 20px 0;
+      padding: 24px;
       font-family: var(--mc-zh-font);
       color: #ffffff;
       user-select: none;
@@ -45,7 +44,7 @@
       box-shadow:
         inset 4px 4px 0px rgba(255, 255, 255, 0.16),
         inset -4px -4px 0px rgba(0, 0, 0, 0.8),
-        0 24px 48px rgba(0, 0, 0, 0.85);
+        0 8px 16px rgba(0, 0, 0, 0.45);
       padding: 16px;
       display: flex;
       flex-direction: column;
@@ -170,12 +169,14 @@
 
     .mc-portrait-img {
       width: 100%;
-      height: auto;
+      height: 400px;
+      object-fit: cover;
+      object-position: center 25%;
       display: block;
     }
 
     .mc-portrait-fallback {
-      height: 320px;
+      height: 400px;
       display: flex;
       flex-direction: column;
       justify-content: center;

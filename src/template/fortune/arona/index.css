@@ -325,13 +325,12 @@
       border: 3px solid #FFFFFF;
       box-shadow: 0 12px 30px rgba(21, 44, 66, 0.14);
       line-height: 0;
-      min-height: 440px;
-      max-height: 840px;
+      height: 500px;
     }
 
     .ba-art-img {
       width: 100%;
-      max-height: 840px;
+      height: 100%;
       object-fit: cover;
       object-position: center 25%;
       display: block;
@@ -343,7 +342,7 @@
       position: relative;
       z-index: 1;
       width: 100%;
-      min-height: 400px;
+      height: 100%;
       display: grid;
       place-items: center;
       background: linear-gradient(135deg, #1289F9 0%, #00D8FF 100%);

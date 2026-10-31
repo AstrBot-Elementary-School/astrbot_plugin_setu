@@ -1,10 +1,10 @@
-{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars] %}{% set extra_message = text.tip %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
+{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars|string] | random %}{% set tip = text.tip[stars|string] | random %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2.0" />
-  <title>{{ text.labels.label_1 }}</title>
+  <title>Phantom Thieves Calling Card - Today&#39;s Fortune</title>
 
 <style>{{ css | safe }}</style>
 </head>
@@ -27,24 +27,24 @@
       <div class="p5-emblem-crest" aria-hidden="true"></div>
       <div class="p5-brand-text">
         <div class="ransom-title-row">
-          <span class="ransom-tile rt-r">{{ text.labels.label_2 }}</span>
-          <span class="ransom-tile rt-w">{{ text.labels.label_3 }}</span>
-          <span class="ransom-tile rt-b">{{ text.labels.label_4 }}</span>
-          <span class="ransom-tile rt-y">{{ text.labels.label_5 }}</span>
+          <span class="ransom-tile rt-r">T</span>
+          <span class="ransom-tile rt-w">A</span>
+          <span class="ransom-tile rt-b">K</span>
+          <span class="ransom-tile rt-y">E</span>
           <span style="width: 8px;"></span>
-          <span class="ransom-tile rt-w">{{ text.labels.label_6 }}</span>
-          <span class="ransom-tile rt-r">{{ text.labels.label_7 }}</span>
-          <span class="ransom-tile rt-b">{{ text.labels.label_8 }}</span>
-          <span class="ransom-tile rt-w">{{ text.labels.label_9 }}</span>
+          <span class="ransom-tile rt-w">Y</span>
+          <span class="ransom-tile rt-r">O</span>
+          <span class="ransom-tile rt-b">U</span>
+          <span class="ransom-tile rt-w">R</span>
           <span style="width: 8px;"></span>
-          <span class="ransom-tile rt-y">{{ text.labels.label_10 }}</span>
-          <span class="ransom-tile rt-r">{{ text.labels.label_11 }}</span>
-          <span class="ransom-tile rt-w">{{ text.labels.label_12 }}</span>
-          <span class="ransom-tile rt-b">{{ text.labels.label_13 }}</span>
-          <span class="ransom-tile rt-r">{{ text.labels.label_14 }}</span>
+          <span class="ransom-tile rt-y">H</span>
+          <span class="ransom-tile rt-r">E</span>
+          <span class="ransom-tile rt-w">A</span>
+          <span class="ransom-tile rt-b">R</span>
+          <span class="ransom-tile rt-r">T</span>
         </div>
         <div class="p5-sub-brand">
-          <span>{{ text.labels.label_15 }}</span>
+          <span>PHANTOM THIEVES OF HEARTS</span>
         </div>
       </div>
     </div>
@@ -73,7 +73,7 @@
         <span>{{ date_str | e }}</span>
       </div>
       <div class="p5-target-skew">
-        <span>{{ text.labels.label_16 }}</span><span class="target-name">{{ username | e }}</span>
+        <span>TARGET:</span><span class="target-name">{{ username | e }}</span>
       </div>
     </div>
   </header>
@@ -82,29 +82,29 @@
   <div class="p5-hero-panel">
     <div class="p5-stage-frame">
       {% if image %}
-      <img class="p5-art-img" src="{{ image | e }}" alt="{{ text.labels.alt_24 }}" />
+      <img class="p5-art-img" src="{{ image | e }}" alt="Persona Visual Feed" />
       {% else %}
       <div class="p5-art-placeholder">
         <svg class="p5-mask-icon" viewBox="0 0 120 70">
           <!-- Joker Phantom Mask Silhouette -->
           <path d="M 10 35 C 25 15, 45 10, 60 25 C 75 10, 95 15, 110 35 C 95 60, 75 65, 60 45 C 45 65, 25 60, 10 35 Z M 35 32 C 40 25, 48 25, 52 35 C 48 40, 40 40, 35 32 Z M 85 32 C 80 25, 72 25, 68 35 C 72 40, 80 40, 85 32 Z" />
         </svg>
-        <span class="p5-placeholder-text">{{ text.labels.label_17 }}</span>
+        <span class="p5-placeholder-text">THE PHANTOM REVELATION</span>
       </div>
       {% endif %}
 
       <div class="p5-stage-halftone" aria-hidden="true"></div>
-      <div class="p5-comic-badge-top">{{ text.labels.label_18 }}</div>
+      <div class="p5-comic-badge-top">SHOW ME YOUR TRUE FORM</div>
 
       <!-- Giant Cut-in Fortune Result -->
       <div class="p5-rank-cutin">
         <div class="p5-rank-box">
           <div class="p5-rank-char">{{ title | e }}</div>
-          <div class="p5-rank-stars">{% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">{{ text.labels.label_19 }}</span>{% endfor %}</div>
+          <div class="p5-rank-stars">{% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">✦</span>{% endfor %}</div>
         </div>
         <div class="p5-rank-stamp" aria-hidden="true">
-          <span class="p5-stamp-big">{{ text.labels.label_20 }}</span>
-          <span class="p5-stamp-small">{{ text.labels.label_21 }}</span>
+          <span class="p5-stamp-big">CONFIRMED</span>
+          <span class="p5-stamp-small">ALL-OUT ATTACK FINISH</span>
         </div>
       </div>
     </div>
@@ -115,13 +115,13 @@
     <div class="p5-dialog-box">
       <div class="p5-dialog-header">
         <div class="p5-calling-tag">
-          <span class="excl">{{ text.labels.label_22 }}</span>
-          <span>{{ text.labels.label_23 }}</span>
+          <span class="excl">!</span>
+          <span>NOTICE // 预言</span>
         </div>
       </div>
       <p class="p5-dialog-quote">“{{ description | e }}”</p>
-      {% if extra_message %}
-      <p class="p5-dialog-extra">{{ extra_message | e }}</p>
+      {% if tip %}
+      <p class="p5-dialog-extra">{{ tip | e }}</p>
       {% endif %}
     </div>
   </section>

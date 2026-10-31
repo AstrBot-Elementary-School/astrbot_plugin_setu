@@ -8,7 +8,7 @@
 
     :root {
       --font-wide: 'Novecentosanswide-Bold', 'Gilroy-ExtraBold', 'NotoSansSC-Bold', sans-serif;
-      --font-mono: 'SpaceGrotesk', 'Gilroy-ExtraBold', monospace;
+      --font-mono: 'SpaceGrotesk', 'Gilroy-ExtraBold', 'NotoSansSC-Regular', monospace;
       --font-cn-bold: 'NotoSansSC-Bold', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       --font-cn-reg: 'NotoSansSC-Regular', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 
@@ -400,7 +400,9 @@
 
     .viewport-art-img {
       width: 100%;
-      height: auto;
+      height: 520px;
+      object-fit: cover;
+      object-position: center 25%;
       display: block;
       position: relative;
       z-index: 1;
@@ -410,7 +412,7 @@
       position: relative;
       z-index: 1;
       width: 100%;
-      min-height: 560px;
+      height: 520px;
       display: flex;
       flex-direction: column;
       justify-content: center;

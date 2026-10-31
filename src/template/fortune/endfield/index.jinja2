@@ -1,10 +1,10 @@
-{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars] %}{% set extra_message = text.tip %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
+{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars|string] | random %}{% set tip = text.tip[stars|string] | random %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=2.0" />
-  <title>{{ text.labels.label_1 }}</title>
+  <title>Endfield AIC Telemetry Dossier</title>
 
 <style>{{ css | safe }}</style>
 </head>
@@ -30,11 +30,11 @@
       <svg class="ef-tri-svg" viewBox="0 0 23 21" aria-hidden="true">
         <path fill-rule="evenodd" fill="currentColor" d="M17.035 10.633L11.466.977h11.138l-5.569 9.656zM.249.977h11.138l-5.569 9.656L.249.977zm11.217 19.368l-5.569-9.657h11.138l-5.569 9.657z" />
       </svg>
-      <span>{{ text.labels.label_2 }}</span>
+      <span>ENDFIELD // AIC-OS</span>
     </div>
     <div class="telemetry-middle">
-      <span>{{ text.labels.label_3 }}</span>
-      <span>{{ text.labels.label_4 }}</span>
+      <span>TALOS-II ORBITAL LINK // DIJIANG</span>
+      <span>PROTOCOL: AUTOMATED-INDUSTRY-COMPLEX</span>
     </div>
     <div class="telemetry-hazard-strip" aria-hidden="true"></div>
   </div>
@@ -50,19 +50,19 @@
       <div class="brand-titles">
         <div class="brand-overline">
           <span class="dot"></span>
-          <span>{{ text.labels.label_5 }}</span>
+          <span>ENDFIELD INDUSTRIES // DAILY FORTUNE TELEMETRY</span>
         </div>
-        <div class="brand-main-title">{{ text.labels.label_6 }}</div>
-        <div class="brand-sub-cn">{{ text.labels.label_7 }}</div>
+        <div class="brand-main-title">TALOS-II FIELD DOSSIER</div>
+        <div class="brand-sub-cn">终末地工业 · 塔卫二每日协议运势勘测简报</div>
       </div>
     </div>
 
     <div class="endmin-meta-box">
       <div class="endmin-info">
-        <span class="endmin-role">{{ text.labels.label_8 }}</span>
+        <span class="endmin-role">ENDMINISTRATOR // 管理员</span>
       </div>
       <div class="endmin-date-block">
-        <span class="date-label">{{ text.labels.label_9 }}</span>
+        <span class="date-label">CYCLE DATE</span>
         <span class="date-value">{{ date_str | e }}</span>
       </div>
     </div>
@@ -77,8 +77,8 @@
       </svg>
 
       <div class="rail-vertical-code">
-        <span class="hl">{{ text.labels.label_10 }}</span>
-        <span>{{ text.labels.label_11 }}</span>
+        <span class="hl">ORIGINIUM-SYNC</span>
+        <span>SECTOR // 04-VALLEY</span>
       </div>
 
       <div class="rail-scale-ticks">
@@ -88,10 +88,10 @@
 
     <div class="hero-viewport">
       {% if image %}
-      <img class="viewport-art-img" src="{{ image | e }}" alt="{{ text.labels.alt_31 }}" />
+      <img class="viewport-art-img" src="{{ image | e }}" alt="Talos-II Field Visual" />
       {% else %}
       <div class="viewport-placeholder">
-        <span>{{ text.labels.label_12 }}</span>
+        <span>NO VISUAL SIGNAL // TALOS-II</span>
       </div>
       {% endif %}
 
@@ -109,18 +109,18 @@
       <div class="vp-floating-hud" aria-hidden="true">
         <div class="hud-rec-pill">
           <span class="rec-dot"></span>
-          <span>{{ text.labels.label_13 }}</span>
-          <span class="hud-sep">{{ text.labels.label_14 }}</span>
-          <span>{{ text.labels.label_15 }}</span>
+          <span>REC // AIC-OPTICS</span>
+          <span class="hud-sep">//</span>
+          <span>142.85 MHz</span>
         </div>
         <div class="hud-lock-tag">
-          <span>{{ text.labels.label_16 }}</span>
+          <span>AZIMUTH 214.8° // LOCK</span>
         </div>
       </div>
 
       <div class="vp-bottom-watermark" aria-hidden="true">
-        <span class="wm-accent">{{ text.labels.label_17 }}</span>
-        <span>{{ text.labels.label_18 }}</span>
+        <span class="wm-accent">■</span>
+        <span>TALOS-II // RECON-FEED</span>
       </div>
     </div>
   </div>
@@ -130,17 +130,17 @@
     <!-- Integrated Endfield Fortune Readout Strip -->
     <div class="fortune-readout-strip">
       <div class="fortune-rank-stamp">
-        <span class="rank-overline">{{ text.labels.label_19 }}</span>
+        <span class="rank-overline">FORTUNE // 运势</span>
         <span class="rank-kanji">{{ title | e }}</span>
       </div>
 
       <div class="fortune-gauge-cell">
         <div class="meter-label-row">
-          <span>{{ text.labels.label_20 }}</span>
-          <span class="meter-val">{{ text.labels.label_21 }}</span>
+          <span>RESONANCE LEVEL</span>
+          <span class="meter-val">CAL-07</span>
         </div>
         <div class="resonance-gauge-bar">
-          {% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">{{ text.labels.label_22 }}</span>{% endfor %}
+          {% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">✦</span>{% endfor %}
         </div>
       </div>
 
@@ -149,10 +149,10 @@
           <svg class="ef-deco-blocks-svg" viewBox="0 0 63 19">
             <path fill-rule="evenodd" fill="currentColor" d="M55.679,18.167 L55.679,11.082 L62.768,11.082 L62.768,18.167 L55.679,18.167 ZM55.679,0.505 L62.768,0.505 L62.768,7.590 L55.679,7.590 L55.679,0.505 ZM44.739,11.082 L51.829,11.082 L51.829,18.167 L44.739,18.167 L44.739,11.082 ZM44.739,0.505 L51.829,0.505 L51.829,7.590 L44.739,7.590 L44.739,0.505 ZM33.800,11.082 L40.890,11.082 L40.890,18.167 L33.800,18.167 L33.800,11.082 ZM33.800,0.505 L40.890,0.505 L40.890,7.590 L33.800,7.590 L33.800,0.505 ZM22.861,11.082 L29.951,11.082 L29.951,18.167 L22.861,18.167 L22.861,11.082 ZM22.861,0.505 L29.951,0.505 L29.951,7.590 L22.861,7.590 L22.861,0.505 ZM11.922,11.082 L19.012,11.082 L19.012,18.167 L11.922,18.167 L11.922,11.082 ZM11.922,0.505 L19.012,0.505 L19.012,7.590 L11.922,7.590 L11.922,0.505 ZM0.983,11.082 L8.073,11.082 L8.073,18.167 L0.983,18.167 L0.983,11.082 ZM0.983,0.505 L8.073,0.505 L8.073,7.590 L0.983,7.590 L0.983,0.505 Z" />
           </svg>
-          <span>{{ text.labels.label_23 }}</span>
+          <span>AIC // VERIFIED</span>
         </div>
-        <span class="stamp-sub">{{ text.labels.label_24 }}</span>
-        <span class="stamp-sub">{{ text.labels.label_25 }}</span>
+        <span class="stamp-sub">BLIGHT-INDEX: 0.02%</span>
+        <span class="stamp-sub">ANCHOR: STABLE</span>
       </div>
     </div>
 
@@ -161,18 +161,18 @@
       <div class="directive-body">
         <div class="directive-header">
           <div class="dir-title">
-            <span class="dir-badge">{{ text.labels.label_26 }}</span>
-            <span>{{ text.labels.label_27 }}</span>
+            <span class="dir-badge">DIRECTIVE</span>
+            <span>FIELD PROPHECY // 勘测批注</span>
           </div>
           <div class="dir-serial">
             <svg class="dir-points-svg" viewBox="0 0 92 15" aria-hidden="true">
               <path fill-rule="evenodd" fill="currentColor" d="M89.241,3.113 C88.381,3.113 87.684,2.416 87.684,1.557 C87.684,0.697 88.381,-0.000 89.241,-0.000 C90.101,-0.000 90.798,0.697 90.798,1.557 C90.798,2.416 90.101,3.113 89.241,3.113 ZM78.345,14.010 C77.485,14.010 76.788,13.313 76.788,12.453 C76.788,11.593 77.485,10.896 78.345,10.896 C79.204,10.896 79.901,11.593 79.901,12.453 C79.901,13.313 79.204,14.010 78.345,14.010 ZM78.345,3.113 C77.485,3.113 76.788,2.416 76.788,1.557 C76.788,0.697 77.485,-0.000 78.345,-0.000 C79.204,-0.000 79.901,0.697 79.901,1.557 C79.901,2.416 79.204,3.113 78.345,3.113 ZM67.448,14.010 C66.588,14.010 65.891,13.313 65.891,12.453 C65.891,11.593 66.588,10.896 67.448,10.896 C68.308,10.896 69.005,11.593 69.005,12.453 C69.005,13.313 68.308,14.010 67.448,14.010 ZM67.448,3.113 C66.588,3.113 65.891,2.416 65.891,1.557 C65.891,0.697 66.588,-0.000 67.448,-0.000 C68.308,-0.000 69.005,0.697 69.005,1.557 C69.005,2.416 68.308,3.113 67.448,3.113 ZM56.552,14.010 C56.498,14.010 56.448,13.999 56.396,13.994 C56.344,13.999 56.294,14.010 56.241,14.010 C55.381,14.010 54.684,13.313 54.684,12.453 C54.684,11.593 55.381,10.896 56.241,10.896 C56.294,10.896 56.344,10.907 56.396,10.912 C56.448,10.907 56.498,10.896 56.552,10.896 C57.411,10.896 58.108,11.593 58.108,12.453 C58.108,13.313 57.411,14.010 56.552,14.010 ZM56.552,3.113 C56.498,3.113 56.448,3.103 56.396,3.098 C56.344,3.103 56.294,3.113 56.241,3.113 C55.381,3.113 54.684,2.416 54.684,1.557 C54.684,0.697 55.381,-0.000 56.241,-0.000 C56.294,-0.000 56.344,0.010 56.396,0.016 C56.448,0.010 56.498,-0.000 56.552,-0.000 C57.411,-0.000 58.108,0.697 58.108,1.557 C58.108,2.416 57.411,3.113 56.552,3.113 ZM45.655,14.010 C45.602,14.010 45.552,13.999 45.500,13.994 C45.448,13.999 45.398,14.010 45.345,14.010 C44.485,14.010 43.788,13.313 43.788,12.453 C43.788,11.593 44.485,10.896 45.345,10.896 C45.398,10.896 45.448,10.907 45.500,10.912 C45.552,10.907 45.602,10.896 45.655,10.896 C46.515,10.896 47.212,11.593 47.212,12.453 C47.212,13.313 46.515,14.010 45.655,14.010 ZM45.655,3.113 C45.602,3.113 45.552,3.103 45.500,3.098 C45.448,3.103 45.398,3.113 45.345,3.113 C44.485,3.113 43.788,2.416 43.788,1.557 C43.788,0.697 44.485,-0.000 45.345,-0.000 C45.398,-0.000 45.448,0.010 45.500,0.016 C45.552,0.010 45.602,-0.000 45.655,-0.000 C46.515,-0.000 47.212,0.697 47.212,1.557 C47.212,2.416 46.515,3.113 45.655,3.113 ZM34.759,14.010 C34.705,14.010 34.655,13.999 34.603,13.994 C34.552,13.999 34.501,14.010 34.448,14.010 C33.588,14.010 32.891,13.313 32.891,12.453 C32.891,11.593 33.588,10.896 34.448,10.896 C34.501,10.896 34.552,10.907 34.603,10.912 C34.655,10.907 34.705,10.896 34.759,10.896 C35.618,10.896 36.315,11.593 36.315,12.453 C36.315,13.313 35.618,14.010 34.759,14.010 ZM34.759,3.113 C34.705,3.113 34.655,3.103 34.603,3.098 C34.552,3.103 34.501,3.113 34.448,3.113 C33.588,3.113 32.891,2.416 32.891,1.557 C32.891,0.697 33.588,-0.000 34.448,-0.000 C34.501,-0.000 34.552,0.010 34.603,0.016 C34.655,0.010 34.705,-0.000 34.759,-0.000 C35.618,-0.000 36.315,0.697 36.315,1.557 C36.315,2.416 35.618,3.113 34.759,3.113 ZM23.551,14.010 C22.692,14.010 21.995,13.313 21.995,12.453 C21.995,11.593 22.692,10.896 23.551,10.896 C24.411,10.896 25.108,11.593 25.108,12.453 C25.108,13.313 24.411,14.010 23.551,14.010 ZM23.551,3.113 C22.692,3.113 21.995,2.416 21.995,1.557 C21.995,0.697 22.692,-0.000 23.551,-0.000 C24.411,-0.000 25.108,0.697 25.108,1.557 C25.108,2.416 24.411,3.113 23.551,3.113 ZM12.655,14.010 C11.795,14.010 11.098,13.313 11.098,12.453 C11.098,11.593 11.795,10.896 12.655,10.896 C13.515,10.896 14.212,11.593 14.212,12.453 C14.212,13.313 13.515,14.010 12.655,14.010 ZM12.655,3.113 C11.795,3.113 11.098,2.416 11.098,1.557 C11.098,0.697 11.795,-0.000 12.655,-0.000 C13.515,-0.000 14.212,0.697 14.212,1.557 C14.212,2.416 13.515,3.113 12.655,3.113 ZM1.759,14.010 C0.899,14.010 0.202,13.313 0.202,13.313 C0.202,11.593 0.899,10.896 1.759,10.896 C2.618,10.896 3.315,11.593 3.315,12.453 C3.315,13.313 2.618,14.010 1.759,14.010 ZM1.759,3.113 C0.899,3.113 0.202,2.416 0.202,1.557 C0.202,0.697 0.899,-0.000 1.759,-0.000 C2.618,-0.000 3.315,0.697 3.315,1.557 C3.315,2.416 2.618,3.113 1.759,3.113 ZM89.241,10.896 C90.101,10.896 90.798,11.593 90.798,12.453 C90.798,13.313 90.101,14.010 89.241,14.010 C88.381,14.010 87.684,13.313 87.684,12.453 C87.684,11.593 88.381,10.896 89.241,10.896 Z" />
             </svg>
-            <span>{{ text.labels.label_28 }}</span>
+            <span>DOC-ID // EF-0784-X</span>
           </div>
         </div>
         <p class="directive-quote">“{{ description | e }}”</p>
-        {% if extra_message %}<p class="directive-extra">{{ extra_message | e }}</p>{% endif %}
+        {% if tip %}<p class="directive-extra">{{ tip | e }}</p>{% endif %}
       </div>
     </div>
 
@@ -182,10 +182,10 @@
         <div class="barcode-strip" aria-hidden="true">
           <span class="b-2"></span><span class="b-1"></span><span class="b-3"></span><span class="b-4"></span><span class="b-1"></span><span class="b-2"></span><span class="b-1"></span><span class="b-4"></span>
         </div>
-        <span>{{ text.labels.label_29 }}</span>
+        <span>ENDFIELD INDUSTRIES // AUTOMATED INDUSTRY COMPLEX TELEMETRY</span>
       </div>
       <div class="footer-right">
-        <span>{{ text.labels.label_30 }}</span>
+        <span>OVER THE FRONTIER, INTO THE FRONT</span>
         <span class="sq" aria-hidden="true"></span>
       </div>
     </footer>

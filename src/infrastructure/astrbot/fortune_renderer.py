@@ -12,6 +12,13 @@ import yaml
 from jinja2 import Environment, StrictUndefined
 
 THEMES = ("arona", "endfield", "persona5", "minecraft", "minimal")
+RENDER_WIDTHS = {
+    "arona": 640,
+    "endfield": 780,
+    "persona5": 828,
+    "minecraft": 528,
+    "minimal": 488,
+}
 
 
 class FortuneRenderer:
@@ -88,19 +95,38 @@ class FortuneRenderer:
 
     def format_text(self, record, theme):
         text = self.assets(theme)[3]
+        key = str(record.star_count)
+        message = random.choice(text["messages"][key])
+        tip = random.choice(text["tip"][key])
         return (
-            f"{record.date_str} · {text['titles'][record.star_count]}\n{text['messages'][record.star_count]}"
-            + (f"\n{text['tip']}" if text["tip"] else "")
+            f"{record.date_str} · {text['titles'][record.star_count]}\n{message}\n{tip}"
         )
 
     async def render_to_image(self, fortune, image=None, card_theme=None):
         from astrbot.core import html_renderer
 
-        template = self.render(fortune, image, card_theme)
+        theme = self.choose_theme(card_theme)
+        _, css, js, text = self.assets(theme)
+        # 让 AstrBot 将脚本注入 <head>，保留 DOCTYPE 的标准渲染模式。
         output = await html_renderer.render_custom_template(
-            tmpl_str="{{ html | safe }}",
-            tmpl_data={"html": template},
+            tmpl_str=(self.root / theme / "index.jinja2").read_text(),
+            tmpl_data={
+                "username": fortune["username"],
+                "date_str": fortune["date_str"],
+                "stars": fortune["stars"],
+                "image": image,
+                "css": css,
+                "js": js,
+                "text": text,
+            },
             return_url=False,
-            options={"full_page": True, "type": "png", "scale": "device"},
+            options={
+                "full_page": True,
+                "type": "png",
+                "scale": "css",
+                "omit_background": True,
+                "viewport_width": RENDER_WIDTHS[theme],
+                "viewport_height": 1,
+            },
         )
         return output if isinstance(output, bytes) else Path(output).read_bytes()
