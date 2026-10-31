@@ -76,7 +76,8 @@ class FortuneCommandHandler:
             )
             pref = await get_database().preference(str(event.get_sender_id()))
             theme = self.renderer.choose_theme(
-                pref["theme"] or get_config().fortune.card_theme.value
+                pref["theme"] or get_config().fortune.card_theme.value,
+                random_themes=get_config().fortune.random_themes,
             )
             try:
                 image = await self.render(event, record, request.username, pref, theme)

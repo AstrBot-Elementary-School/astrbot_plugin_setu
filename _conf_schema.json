@@ -324,7 +324,7 @@
       "card_theme": {
         "type": "string",
         "description": "卡片视觉风格",
-        "hint": "默认使用终末地；选择随机时，每次查看从五个主题中随机选择，保留当天星级。个人主题偏好优先生效。",
+        "hint": "默认使用终末地；选择随机时，每次查看从“随机主题范围”中抽取，保留当天星级。个人主题偏好优先生效。",
         "default": "endfield",
         "options": [
           "endfield",
@@ -341,6 +341,34 @@
           "我的世界",
           "简约",
           "随机"
+        ],
+        "condition": {
+          "enabled": true
+        }
+      },
+      "random_themes": {
+        "type": "list",
+        "description": "随机主题范围",
+        "hint": "多选。默认主题或个人偏好设为随机时，从勾选的主题中抽取。默认排除简约；留空或填写无效主题时恢复默认范围。",
+        "default": [
+          "arona",
+          "endfield",
+          "persona5",
+          "minecraft"
+        ],
+        "options": [
+          "arona",
+          "endfield",
+          "persona5",
+          "minecraft",
+          "minimal"
+        ],
+        "labels": [
+          "蔚蓝档案",
+          "终末地",
+          "女神异闻录5",
+          "我的世界",
+          "简约"
         ],
         "condition": {
           "enabled": true

@@ -51,10 +51,10 @@ class FortuneRenderer:
             )
         return self.aliases[key]
 
-    def choose_theme(self, theme=None):
+    def choose_theme(self, theme=None, random_themes=THEMES[:-1]):
         selected = self.resolve_theme(theme or self.card_theme)
         if selected == "random":
-            selected = random.choice(THEMES)
+            selected = random.choice(random_themes)
         return selected
 
     def assets(self, theme):

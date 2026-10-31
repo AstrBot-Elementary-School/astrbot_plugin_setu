@@ -261,6 +261,12 @@ class FortuneConfig(BaseModel):
     show_advanced: bool = False
     enabled: bool = True
     card_theme: FortuneCardThemeStr = FortuneCardThemeStr.ENDFIELD
+    random_themes: list[
+        Literal["arona", "endfield", "persona5", "minecraft", "minimal"]
+    ] = Field(
+        default_factory=lambda: ["arona", "endfield", "persona5", "minecraft"],
+        min_length=1,
+    )
     tags: str = ""
     content_mode: ContentModeStr = ContentModeStr.SFW
     allow_user_refresh: bool = False
