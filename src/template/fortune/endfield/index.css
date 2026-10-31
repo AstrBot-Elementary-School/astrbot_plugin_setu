@@ -400,8 +400,7 @@
 
     .viewport-art-img {
       width: 100%;
-      height: auto;
-      max-height: 520px;
+      height: 520px;
       object-fit: cover;
       object-position: center 25%;
       display: block;

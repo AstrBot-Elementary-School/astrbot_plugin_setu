@@ -93,7 +93,7 @@
     }
 
     body {
-      background-color: #ffffff;
+      background-color: transparent;
       margin: 0;
       padding: 24px;
       display: flex;
@@ -110,6 +110,7 @@
       background: var(--p5-black);
       border: 8px solid var(--p5-black);
       outline: 4px solid var(--p5-white);
+      box-shadow: 18px 24px 0 rgba(0, 0, 0, 0.85), -6px 8px 0 rgba(230, 0, 18, 0.4);
       color: var(--p5-white);
       overflow: hidden;
       display: flex;
@@ -343,8 +344,7 @@
 
     .p5-art-img {
       width: 100%;
-      height: auto;
-      max-height: 520px;
+      height: 520px;
       object-fit: cover;
       object-position: center 25%;
       display: block;

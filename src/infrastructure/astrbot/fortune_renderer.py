@@ -124,7 +124,7 @@ class FortuneRenderer:
                 "full_page": True,
                 "type": "png",
                 "scale": "css",
-                "omit_background": False,
+                "omit_background": True,
                 "viewport_width": RENDER_WIDTHS[theme],
                 "viewport_height": 1,
             },

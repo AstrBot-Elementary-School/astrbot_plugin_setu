@@ -19,7 +19,7 @@
     }
 
     body {
-      background-color: #ffffff;
+      background-color: transparent;
       display: flex;
       justify-content: center;
       align-items: flex-start;
@@ -43,7 +43,8 @@
       border: 4px solid #000000;
       box-shadow:
         inset 4px 4px 0px rgba(255, 255, 255, 0.16),
-        inset -4px -4px 0px rgba(0, 0, 0, 0.8);
+        inset -4px -4px 0px rgba(0, 0, 0, 0.8),
+        0 8px 16px rgba(0, 0, 0, 0.45);
       padding: 16px;
       display: flex;
       flex-direction: column;
@@ -149,6 +150,7 @@
     /* Authentic Big Painting / Item Frame with Wood Texture */
     .mc-item-frame {
       width: 100%;
+      min-height: 280px;
       background-color: #8f6c38;
       background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA00lEQVQ4y31TMQ4CMQzzg9iZ7wFILMxIt/ABZiZ2FsSGeMKtzHysyJVcGRMYfGmTqImdHJ7XfVsuu0b7us9f+Oe/HacGHvQIQefjvBmPZlx35hCoEmWVJOQjvQN+TvO6g2fdD9tVh2I6u58W4sgKyTN9ToUx3j8oKCDreiRV5cP5eQUJWgnpuiC5pgYZzxz4nL1KNfvUo3fgo8t2c4RupREqdavZZ3x04ByrPfCY74QAzTu1UIVqLzwXv3Y82801F+CJ+R/4HlT6DA2Sm+vhmlT78QZ+7nLGaC/6FAAAAABJRU5ErkJggg==');
       background-repeat: repeat;
@@ -167,15 +169,14 @@
 
     .mc-portrait-img {
       width: 100%;
-      height: auto;
-      max-height: 320px;
+      height: 400px;
       object-fit: cover;
       object-position: center 25%;
       display: block;
     }
 
     .mc-portrait-fallback {
-      height: 320px;
+      height: 400px;
       display: flex;
       flex-direction: column;
       justify-content: center;
