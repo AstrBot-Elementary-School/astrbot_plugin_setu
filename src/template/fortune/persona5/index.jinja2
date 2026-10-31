@@ -1,0 +1,166 @@
+{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars|string] | random %}{% set tip = text.tip[stars|string] | random %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=2.0" />
+  <title>Phantom Thieves Calling Card - Today&#39;s Fortune</title>
+
+<style>{{ css | safe }}</style>
+</head>
+<body>
+
+<div class="p5-fortune-card {{ theme_color }}">
+  <!-- Background Pattern -->
+  <div class="p5-bg-canvas" aria-hidden="true"></div>
+
+  <!-- Dynamic Slash Overlay -->
+  <div class="p5-slash-layer" aria-hidden="true">
+    <div class="p5-slash p5-slash-1"></div>
+    <div class="p5-slash p5-slash-2"></div>
+    <div class="p5-slash-dots"></div>
+  </div>
+
+  <!-- 1. HEADER: Ransom note & Identity -->
+  <header class="p5-header">
+    <div class="p5-header-brand">
+      <div class="p5-emblem-crest" aria-hidden="true"></div>
+      <div class="p5-brand-text">
+        <div class="ransom-title-row">
+          <span class="ransom-tile rt-r">T</span>
+          <span class="ransom-tile rt-w">A</span>
+          <span class="ransom-tile rt-b">K</span>
+          <span class="ransom-tile rt-y">E</span>
+          <span style="width: 8px;"></span>
+          <span class="ransom-tile rt-w">Y</span>
+          <span class="ransom-tile rt-r">O</span>
+          <span class="ransom-tile rt-b">U</span>
+          <span class="ransom-tile rt-w">R</span>
+          <span style="width: 8px;"></span>
+          <span class="ransom-tile rt-y">H</span>
+          <span class="ransom-tile rt-r">E</span>
+          <span class="ransom-tile rt-w">A</span>
+          <span class="ransom-tile rt-b">R</span>
+          <span class="ransom-tile rt-r">T</span>
+        </div>
+        <div class="p5-sub-brand">
+          <span>PHANTOM THIEVES OF HEARTS</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="p5-header-target">
+      <div class="p5-date-skew">
+        <span class="cal-icon" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <!-- Red offset shadow block -->
+            <polygon points="4,7 26,5 24,25 3,24" fill="#E60012" />
+            <!-- Main tilted P5 calendar frame -->
+            <polygon points="2,5.5 24,3.5 22.5,23 1.5,22" fill="#0D0D0D" stroke="#0D0D0D" stroke-width="1.5" />
+            <!-- Red calendar header band -->
+            <polygon points="2.5,5.8 23.5,4 23,10.2 2.2,11.5" fill="#E60012" />
+            <!-- Calendar binding rings -->
+            <rect x="6.5" y="1.5" width="3" height="6" fill="#FFFFFF" stroke="#0D0D0D" stroke-width="1.4" />
+            <rect x="16" y="0.8" width="3" height="6" fill="#FFFFFF" stroke="#0D0D0D" stroke-width="1.4" />
+            <!-- Calendar grid cells -->
+            <polygon points="4.8,13.5 9.2,13.1 8.8,16.8 4.5,17.1" fill="#FFE800" />
+            <polygon points="11,13 15.2,12.6 14.8,16.3 10.6,16.7" fill="#FFFFFF" />
+            <polygon points="17,12.5 20.8,12.2 20.4,15.8 16.6,16.2" fill="#FFFFFF" />
+            <polygon points="4.4,18.4 12.8,17.8 12.5,20.3 4.2,20.8" fill="#FFFFFF" />
+            <polygon points="14.6,17.6 20.2,17.2 19.9,19.8 14.3,20.2" fill="#E60012" />
+          </svg>
+        </span>
+        <span>{{ date_str | e }}</span>
+      </div>
+      <div class="p5-target-skew">
+        <span>TARGET:</span><span class="target-name">{{ username | e }}</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. HERO STAGE -->
+  <div class="p5-hero-panel">
+    <div class="p5-stage-frame">
+      {% if image %}
+      <img class="p5-art-img" src="{{ image | e }}" alt="Persona Visual Feed" />
+      {% else %}
+      <div class="p5-art-placeholder">
+        <svg class="p5-mask-icon" viewBox="0 0 120 70">
+          <!-- Joker Phantom Mask Silhouette -->
+          <path d="M 10 35 C 25 15, 45 10, 60 25 C 75 10, 95 15, 110 35 C 95 60, 75 65, 60 45 C 45 65, 25 60, 10 35 Z M 35 32 C 40 25, 48 25, 52 35 C 48 40, 40 40, 35 32 Z M 85 32 C 80 25, 72 25, 68 35 C 72 40, 80 40, 85 32 Z" />
+        </svg>
+        <span class="p5-placeholder-text">THE PHANTOM REVELATION</span>
+      </div>
+      {% endif %}
+
+      <div class="p5-stage-halftone" aria-hidden="true"></div>
+      <div class="p5-comic-badge-top">SHOW ME YOUR TRUE FORM</div>
+
+      <!-- Giant Cut-in Fortune Result -->
+      <div class="p5-rank-cutin">
+        <div class="p5-rank-box">
+          <div class="p5-rank-char">{{ title | e }}</div>
+          <div class="p5-rank-stars">{% for i in range(7) %}<span class="star-glyph{{ ' empty' if i >= stars else '' }}">✦</span>{% endfor %}</div>
+        </div>
+        <div class="p5-rank-stamp" aria-hidden="true">
+          <span class="p5-stamp-big">CONFIRMED</span>
+          <span class="p5-stamp-small">ALL-OUT ATTACK FINISH</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. DIRECTIVE & CALLING NOTICE -->
+  <section class="p5-directive-section">
+    <div class="p5-dialog-box">
+      <div class="p5-dialog-header">
+        <div class="p5-calling-tag">
+          <span class="excl">!</span>
+          <span>NOTICE // 预言</span>
+        </div>
+      </div>
+      <p class="p5-dialog-quote">“{{ description | e }}”</p>
+      {% if tip %}
+      <p class="p5-dialog-extra">{{ tip | e }}</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- 4. FOOTER: P5 TEXTURE STRIP -->
+  <footer class="p5-footer" aria-hidden="true">
+    <svg class="p5-footer-texture-svg" viewBox="0 0 780 44" preserveAspectRatio="none">
+      <defs>
+        <pattern id="p5-halftone" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-15)">
+          <circle cx="3" cy="3" r="1.6" fill="#FFFFFF" fill-opacity="0.16" />
+        </pattern>
+      </defs>
+      <!-- Base Noir & Halftone -->
+      <rect width="780" height="44" fill="#0D0D0D" />
+      <!-- Dynamic Calling Card Jagged Slashes -->
+      <polygon points="-20,44 75,0 145,0 50,44" fill="var(--theme-main)" />
+      <polygon points="152,44 210,0 222,0 164,44" fill="#FFFFFF" opacity="0.9" />
+      <polygon points="240,44 335,0 430,0 335,44" fill="var(--theme-main)" opacity="0.88" />
+      <polygon points="445,44 505,0 522,0 462,44" fill="var(--theme-accent)" opacity="0.9" />
+      <polygon points="560,44 655,0 795,0 700,44" fill="var(--theme-main)" />
+      <polygon points="690,44 748,0 760,0 702,44" fill="#FFFFFF" opacity="0.92" />
+      <!-- Halftone Comic Overlay -->
+      <rect width="780" height="44" fill="url(#p5-halftone)" />
+      <!-- P5 Nested Concentric Starburst Texture -->
+      <g transform="translate(115, 22) rotate(-10)">
+        <polygon points="0,-20 5,-6 19,-6 8,2 12,16 0,8 -12,16 -8,2 -19,-6 -5,-6" fill="#FFFFFF" stroke="#0D0D0D" stroke-width="2.5" />
+        <polygon points="0,-12 3,-4 11,-4 5,1 7,9 0,4 -7,9 -5,1 -11,-4 -3,-4" fill="#0D0D0D" />
+      </g>
+      <g transform="translate(385, 24) rotate(14) scale(0.85)">
+        <polygon points="0,-18 4.5,-5.5 18,-5.5 7,2 11,15 0,7 -11,15 -7,2 -18,-5.5 -4.5,-5.5" fill="#0D0D0D" stroke="#FFFFFF" stroke-width="2.5" />
+        <polygon points="0,-10 2.5,-3 9.5,-3 4,1 6,8 0,4 -6,8 -4,1 -9.5,-3 -2.5,-3" fill="var(--theme-accent)" />
+      </g>
+      <g transform="translate(625, 20) rotate(-8) scale(1.05)">
+        <polygon points="0,-20 5,-6 19,-6 8,2 12,16 0,8 -12,16 -8,2 -19,-6 -5,-6" fill="#0D0D0D" stroke="#FFFFFF" stroke-width="2.5" />
+        <polygon points="0,-12 3,-4 11,-4 5,1 7,9 0,4 -7,9 -5,1 -11,-4 -3,-4" fill="#FFFFFF" />
+      </g>
+    </svg>
+  </footer>
+</div>
+
+</body>
+</html>

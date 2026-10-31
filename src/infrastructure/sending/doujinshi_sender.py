@@ -11,17 +11,8 @@ from ..doujinshi import GeneratedDoujinshiFile
 
 def build_doujinshi_file_chain(
     generated: GeneratedDoujinshiFile,
-    *,
-    platform_name: str | None = None,
-    self_id: str | int | None = None,
 ) -> list[Comp.BaseMessageComponent]:
-    """构造跨平台通用的普通文件消息链。
-
-    本子不再包装为 ``Nodes`` 合并转发；PDF 和 ZIP 都通过单个 ``File``
-    消息发送，由调用方决定是否需要走 OneBot 原始直发以取得撤回所需的
-    ``message_id``。保留旧的 ``platform_name`` / ``self_id`` 关键字参数仅为
-    兼容外部调用方，它们不会改变普通文件发送行为。
-    """
+    """构造普通文件消息链。"""
     file_name = get_doujinshi_file_name(generated)
     return [Comp.File(name=file_name, file=str(generated.path))]
 

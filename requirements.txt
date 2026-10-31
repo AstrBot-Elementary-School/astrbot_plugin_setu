@@ -1,5 +1,5 @@
 python-docx>=1.0.0
 Pillow>=10.0.0
-httpx[http2]>=0.28.0
+httpx>=0.28.0
 pydantic>=2.0
 aiosqlite>=0.19.0

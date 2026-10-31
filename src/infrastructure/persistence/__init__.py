@@ -70,10 +70,8 @@ def get_fortune_repo() -> SQLiteFortuneRepo:
 
 
 async def init_fortune_repo(data_dir: Path) -> SQLiteFortuneRepo:
-    """Initialize fortune repository singleton."""
     global _fortune_repo
-    _fortune_repo = SQLiteFortuneRepo(data_dir / "fortune")
-    await _fortune_repo.initialize()
+    _fortune_repo = SQLiteFortuneRepo()
     return _fortune_repo
 
 

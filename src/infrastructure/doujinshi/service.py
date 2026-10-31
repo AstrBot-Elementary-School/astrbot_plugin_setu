@@ -3,35 +3,29 @@
 from __future__ import annotations
 
 import asyncio
+import mimetypes
+import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from io import BytesIO
-import mimetypes
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
-import zipfile
 
 import httpx
-from PIL import Image
-from PIL import ImageOps
+from PIL import Image, ImageOps
 
 from ...domain import HTTP_TIMEOUT_SECONDS
+from ...shared.cache import get_cache
 
 
 @dataclass(frozen=True)
 class DoujinshiGallery:
-    """可下载并封装为文件的本子元数据。
-
-    ``title`` 可在上游缺失时回退为本地标题；其余两个字段保留上游实际
-    返回的元数据，便于诊断和未来扩展，但不会再被拼装成合并转发节点。
-    """
+    """本子文件生成所需的元数据。"""
 
     id: int
     title: str
     page_urls: tuple[str, ...]
-    upstream_title: str | None = None
-    source_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,10 +35,6 @@ class GeneratedDoujinshiFile:
     gallery: DoujinshiGallery
     path: Path
     mode: str = "pdf"
-
-
-# 保留旧名称，避免外部调用方在升级后导入失败；新代码使用通用文件类型。
-GeneratedDoujinshiPdf = GeneratedDoujinshiFile
 
 
 class DoujinshiService:
@@ -61,7 +51,7 @@ class DoujinshiService:
     }
 
     def __init__(self, data_dir: Path | str) -> None:
-        self._output_dir = Path(data_dir) / "doujinshi"
+        self._output_dir = Path(data_dir) / "cache" / "doujinshi"
 
     async def fetch_random_file(
         self,
@@ -91,30 +81,6 @@ class DoujinshiService:
                 managed_client, normalized_tags, normalized_mode, max_page
             )
 
-    async def fetch_random_pdf(
-        self,
-        tags: list[str] | None = None,
-        *,
-        max_page: int | None = None,
-        client: httpx.AsyncClient | None = None,
-    ) -> GeneratedDoujinshiFile:
-        """兼容旧调用方：强制生成 PDF 文件。"""
-        return await self.fetch_random_file(
-            tags, mode="pdf", max_page=max_page, client=client
-        )
-
-    async def fetch_random_archive(
-        self,
-        tags: list[str] | None = None,
-        *,
-        max_page: int | None = None,
-        client: httpx.AsyncClient | None = None,
-    ) -> GeneratedDoujinshiFile:
-        """获取随机本子并生成 ZIP 压缩包。"""
-        return await self.fetch_random_file(
-            tags, mode="archive", max_page=max_page, client=client
-        )
-
     async def _fetch_random_file_with_client(
         self,
         client: httpx.AsyncClient,
@@ -141,6 +107,7 @@ class DoujinshiService:
 
         gallery = self.parse_gallery(raw_payload)
         output_path = self._build_output_path(gallery, mode)
+        get_cache().pin(output_path)
         try:
             if mode == "pdf":
                 await self._create_pdf_from_urls(
@@ -151,7 +118,7 @@ class DoujinshiService:
                     client, gallery.page_urls, output_path
                 )
         except BaseException:
-            output_path.unlink(missing_ok=True)
+            get_cache().release(output_path)
             raise
         return GeneratedDoujinshiFile(
             gallery=gallery,
@@ -167,39 +134,13 @@ class DoujinshiService:
             raise ValueError("随机本子 API 响应缺少有效 ID")
 
         raw_title = payload.get("title")
-        upstream_title = DoujinshiService._resolve_upstream_title(raw_title)
         title = DoujinshiService._resolve_title(raw_title, gallery_id)
-        source_url = DoujinshiService._resolve_source_url(payload.get("url"))
         page_urls = DoujinshiService._resolve_page_urls(payload.get("pages"))
         return DoujinshiGallery(
             id=gallery_id,
             title=title,
             page_urls=tuple(page_urls),
-            upstream_title=upstream_title,
-            source_url=source_url,
         )
-
-    @staticmethod
-    def create_pdf(pages: list[Image.Image], output_path: Path, title: str) -> None:
-        """按下载顺序将所有页图写入一个多页 PDF。"""
-        if not pages:
-            raise ValueError("无法从空页图列表生成 PDF")
-
-        prepared_pages = [DoujinshiService._prepare_pdf_page(page) for page in pages]
-        try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            first_page, *remaining_pages = prepared_pages
-            first_page.save(
-                output_path,
-                "PDF",
-                save_all=True,
-                append_images=remaining_pages,
-                title=title,
-                resolution=72.0,
-            )
-        finally:
-            for page in prepared_pages:
-                page.close()
 
     async def _create_pdf_from_urls(
         self,
@@ -232,9 +173,12 @@ class DoujinshiService:
     ) -> None:
         """按页下载图片并写入 ZIP，成员名按页码保证客户端排序稳定。"""
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(
-            output_path, mode="w", compression=zipfile.ZIP_DEFLATED
-        ) as archive:
+        with (
+            get_cache().open(output_path) as output,
+            zipfile.ZipFile(
+                output, mode="w", compression=zipfile.ZIP_DEFLATED
+            ) as archive,
+        ):
             for page_number, page_url in enumerate(page_urls, start=1):
                 try:
                     response = await client.get(page_url, headers=self.REQUEST_HEADERS)
@@ -290,15 +234,16 @@ class DoujinshiService:
         with Image.open(BytesIO(page_bytes)) as source:
             prepared_page = DoujinshiService._prepare_pdf_page(source)
         try:
-            if is_first_page:
+            with get_cache().open(
+                output_path, "w+b" if is_first_page else "r+b"
+            ) as output:
                 prepared_page.save(
-                    output_path,
+                    output,
                     "PDF",
+                    append=not is_first_page,
                     title=title,
                     resolution=72.0,
                 )
-            else:
-                prepared_page.save(output_path, "PDF", append=True)
         finally:
             prepared_page.close()
 
@@ -340,16 +285,6 @@ class DoujinshiService:
         if isinstance(raw_title, str) and raw_title.strip():
             return raw_title.strip()
         return None
-
-    @staticmethod
-    def _resolve_source_url(raw_url: object) -> str | None:
-        """仅保留上游提供的有效原始地址，缺失时交由发送器省略节点。"""
-        if not isinstance(raw_url, str):
-            return None
-        source_url = raw_url.strip()
-        if not source_url or not DoujinshiService._is_http_url(source_url):
-            return None
-        return source_url
 
     @staticmethod
     def _resolve_page_urls(raw_pages: object) -> list[str]:

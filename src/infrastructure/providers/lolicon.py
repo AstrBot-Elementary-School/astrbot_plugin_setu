@@ -5,11 +5,11 @@
 
 from __future__ import annotations
 
-import asyncio
 from urllib.parse import quote
 
 import httpx
 
+from ...application.setu.dto import ImageMetadata
 from ...domain import HTTP_TIMEOUT_SECONDS
 from ...shared import get_logger
 from .base import DownloadingSetuImageProvider
@@ -48,13 +48,13 @@ class LoliconProvider(DownloadingSetuImageProvider):
         self.uid = uid or []
         self.keyword = keyword
 
-    async def fetch_image_urls(
+    async def fetch_images(
         self,
         num: int,
         tags: list[str],
         r18: bool,
         exclude_ai: bool = True,
-    ) -> list[str]:
+    ) -> list[ImageMetadata]:
         logger.info(
             "[provider] Lolicon request: count=%d, r18=%s, tags=%s, size=%s, proxy=%s, exclude_ai=%s",
             num,
@@ -64,7 +64,7 @@ class LoliconProvider(DownloadingSetuImageProvider):
             self.proxy or "-",
             exclude_ai,
         )
-        exclude_ai_flag = self._normalize_bool(exclude_ai, default=True)
+        exclude_ai_flag = exclude_ai
         query_params: list[tuple[str, str | int]] = [
             ("r18", 1 if r18 else 0),
             ("num", num),
@@ -92,32 +92,28 @@ class LoliconProvider(DownloadingSetuImageProvider):
         if tag_params:
             url += f"&{tag_params}"
 
-        try:
-            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
-                resp = await client.get(url)
-                resp.raise_for_status()
-                data = resp.json()
-        except httpx.HTTPStatusError as e:
-            logger.warning("Lolicon API 响应错误: %s %s", e, url)
-            return []
-        except httpx.HTTPError as e:
-            logger.warning("Lolicon API 请求失败: %s %s", e, url)
-            return []
-        except asyncio.TimeoutError:
-            logger.warning("Lolicon API 请求超时: %s", url)
-            return []
-        except Exception as e:
-            logger.exception("Lolicon API 异常: %s", e)
-            return []
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
 
-        urls: list[str] = []
+        urls: list[ImageMetadata] = []
         for item in data.get("data", []):
             # 根据 size 参数返回对应的 URL
             urls_obj = item.get("urls", {})
             img_url = urls_obj.get(self.image_size)
             if img_url:
-                urls.append(img_url)
-        urls = self._apply_proxy_to_urls(urls, self.proxy, "LoliconProvider")
+                urls.append(
+                    ImageMetadata(
+                        img_url,
+                        f"https://www.pixiv.net/artworks/{item['pid']}"
+                        if item.get("pid")
+                        else self.API_URL,
+                        tuple(item.get("tags") or ()),
+                        self._apply_proxy_to_url(img_url, self.proxy),
+                    )
+                )
+
         logger.info(
             "[provider] Lolicon response: requested=%d, returned=%d",
             num,

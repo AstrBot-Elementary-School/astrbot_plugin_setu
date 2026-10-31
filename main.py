@@ -6,37 +6,36 @@ registration discovers them. Business logic is delegated to handler helpers.
 
 from __future__ import annotations
 
-import asyncio
-import datetime
 import json
 import re
 from collections.abc import AsyncGenerator
-from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools
 from astrbot.core import AstrBotConfig
+from astrbot.core.star.filter.command import GreedyStr
 
 from .src.domain.setu.triggers import TriggerMatch, match_trigger
-from .src.infrastructure import (
-    init_access_control_repo,
-    init_fortune_repo,
-    init_provider_from_config,
-)
 from .src.infrastructure.astrbot import get_config, init_config, set_plugin_context
-from .src.infrastructure.astrbot.commands import (
-    FortuneCommandHandler,
+from .src.infrastructure.astrbot.commands.setu import (
     SetuCommandHandler,
-    register_fortune_llm_tools,
-    register_setu_llm_tools,
-    unregister_fortune_llm_tools,
-    unregister_setu_llm_tools,
 )
+from .src.infrastructure.astrbot.commands.setu import (
+    register_llm_tools as register_setu_llm_tools,
+)
+from .src.infrastructure.astrbot.commands.setu import (
+    unregister_llm_tools as unregister_setu_llm_tools,
+)
+from .src.infrastructure.persistence import init_access_control_repo, init_fortune_repo
+from .src.infrastructure.providers import init_provider_from_config
+
+if TYPE_CHECKING:
+    from .src.infrastructure.astrbot.commands.fortune import FortuneCommandHandler
+
 from .src.infrastructure.config import heal_astrbot_plugin_config
-from .src.infrastructure.config.legacy_data_migration import migrate_plugin_config
 from .src.infrastructure.sending import (
     init_revoke_scheduler,
     stop_revoke_scheduler,
@@ -47,21 +46,6 @@ from .src.shared.send_cache import clear_send_cache, init_send_cache
 _setu_handler: SetuCommandHandler | None = None
 _fortune_handler: FortuneCommandHandler | None = None
 
-FORTUNE_REFRESH_ARG_ALIASES = {
-    "": "self",
-    "我": "self",
-    "自己": "self",
-    "我的": "self",
-    "self": "self",
-    "me": "self",
-    "本群": "group",
-    "群": "group",
-    "group": "group",
-    "全局": "all",
-    "全部": "all",
-    "all": "all",
-    "global": "all",
-}
 _LEADING_COMMAND_PREFIX_PATTERN = re.compile(r"^[^\w\u4e00-\u9fff]+")
 
 
@@ -105,7 +89,6 @@ async def _route_regex_command(
     elif matched.kind == "fortune" and fortune_handler is not None:
         async for result in fortune_handler.fortune_command(event):
             yield result
-    event.stop_event()
 
 
 def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
@@ -116,7 +99,16 @@ def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
     if _is_fortune_command_invocation(event) or (
         getattr(event, "is_at_or_wake_command", False)
         and _get_invoked_command(event)
-        in {"setu", "随机本子", "本子", "doujinshi", "刷新运势"}
+        in {
+            "色图",
+            "setu",
+            "随机本子",
+            "本子",
+            "doujinshi",
+            "刷新运势",
+            "刷新全局运势",
+            "运势偏好",
+        }
     ):
         return None
     return match_trigger(
@@ -127,38 +119,6 @@ def _match_natural_trigger(event: AstrMessageEvent) -> TriggerMatch | None:
 class NaturalLanguageFilter(filter.CustomFilter):
     def filter(self, event: AstrMessageEvent, cfg: AstrBotConfig) -> bool:
         return _match_natural_trigger(event) is not None
-
-
-def _fortune_auto_refresh_enabled(config: Any) -> bool:
-    fortune = getattr(config, "fortune", None)
-    return (
-        getattr(fortune, "enabled", False) is True
-        and getattr(fortune, "auto_refresh", False) is True
-    )
-
-
-def _seconds_until_next_midnight() -> float:
-    now = datetime.datetime.now()
-    tomorrow = now.date() + datetime.timedelta(days=1)
-    next_midnight = datetime.datetime.combine(tomorrow, datetime.time.min)
-    return max(1.0, (next_midnight - now).total_seconds())
-
-
-def _load_conf_schema() -> dict[str, Any]:
-    """Load plugin config schema for runtime config healing."""
-    schema_path = Path(__file__).with_name("_conf_schema.json")
-    try:
-        return json.loads(schema_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning("Failed to load Setu config schema: %s", exc)
-        return {}
-
-
-def _resolve_fortune_refresh_target(event: AstrMessageEvent, args: str) -> str:
-    target = FORTUNE_REFRESH_ARG_ALIASES.get((args or "").strip().lower())
-    if target:
-        return target
-    raise ValueError("用法：/刷新运势 [我|本群|全局]")
 
 
 class SetuPlugin(Star):
@@ -173,154 +133,104 @@ class SetuPlugin(Star):
         super().__init__(context, config)
         self.context = context
         self._plugin_config = config
-        self._fortune_pregenerate_task: asyncio.Task[None] | None = None
 
     async def initialize(self) -> None:
         global _setu_handler, _fortune_handler
+        from .src.infrastructure.persistence.database import init_database
+        from .src.shared.cache import init_cache
 
-        data_dir = Path(StarTools.get_data_dir(self.name))
-        migrate_plugin_config(data_dir, self._plugin_config)
-        raw_config = self._runtime_plugin_config()
-        raw_config = self._heal_runtime_plugin_config(raw_config)
-        cfg = init_config(raw_config)
+        schema = json.loads(Path(__file__).with_name("_conf_schema.json").read_text())
+        cleaned, changes = heal_astrbot_plugin_config(dict(self._plugin_config), schema)
+        if changes:
+            self._plugin_config.clear()
+            self._plugin_config.update(cleaned)
+            self._plugin_config.save_config()
+        cfg = init_config(cleaned)
         set_plugin_context(self.context)
-
-        init_provider_from_config(cfg)
-
-        await init_access_control_repo(cfg.safety)
-        if cfg.fortune.enabled:
-            await init_fortune_repo(data_dir)
-        await init_send_cache(
-            data_dir,
-            enabled=cfg.cache_enabled,
-            ttl_hours=cfg.cache_ttl_hours,
-            max_items=cfg.cache_max_items,
-            cleanup_on_start=cfg.cache_cleanup_on_start,
-        )
-        revoke_scheduler = await init_revoke_scheduler(data_dir, self.context)
-
-        _setu_handler = SetuCommandHandler(
-            data_dir=Path(data_dir),
-            plugin_context=self.context,
-            revoke_scheduler=revoke_scheduler,
-        )
-        _fortune_handler = FortuneCommandHandler()
-        if _fortune_auto_refresh_enabled(cfg):
-            self._fortune_pregenerate_task = asyncio.create_task(
-                self._fortune_pregenerate_loop(), name="setu_fortune_pregenerate"
-            )
-
+        data_dir = Path(StarTools.get_data_dir(self.name))
         try:
+            init_cache(data_dir / "cache")
+            await init_database(data_dir)
+            await init_send_cache(data_dir, enabled=cfg.cache.setu)
+            init_provider_from_config(cfg)
+            await init_access_control_repo(cfg.safety)
+            scheduler = await init_revoke_scheduler(data_dir, self.context)
+            _setu_handler = SetuCommandHandler(
+                data_dir=data_dir,
+                plugin_context=self.context,
+                revoke_scheduler=scheduler,
+            )
+            if cfg.fortune.enabled:
+                from .src.infrastructure.astrbot.commands.fortune import (
+                    FortuneCommandHandler,
+                )
+                from .src.infrastructure.astrbot.commands.fortune import (
+                    register_llm_tools as register_fortune_llm_tools,
+                )
+
+                await init_fortune_repo(data_dir)
+                _fortune_handler = FortuneCommandHandler()
             if cfg.setu_general.llm_tools_enabled:
                 register_setu_llm_tools(_setu_handler)
-                if cfg.fortune.enabled:
-                    register_fortune_llm_tools()
-        except Exception as e:
-            logger.warning("Failed to register LLM tools: %s", e)
+                if _fortune_handler is not None:
+                    register_fortune_llm_tools(_fortune_handler)
+            self._apply_registration_switches(cfg)
+        except BaseException:
+            await self.terminate()
+            raise
+        logger.info("SetuPlugin initialized")
 
-        logger.info("SetuPlugin initialized successfully")
+    def _apply_registration_switches(self, cfg) -> None:
+        from astrbot.core.star import star_map
+        from astrbot.core.star.star_handler import star_handlers_registry
+
+        for handler in list(
+            star_handlers_registry.get_handlers_by_module_name(__name__)
+        ):
+            enabled = (
+                cfg.setu_general.natural_language_enabled
+                if handler.handler_name == "regex_command"
+                else cfg.setu_general.commands_enabled
+            )
+            if not cfg.fortune.enabled and (
+                handler.handler_name.startswith("fortune_")
+                or handler.handler_name.startswith("preference")
+            ):
+                enabled = False
+            if not enabled:
+                star_handlers_registry.remove(handler)
+        star_map[__name__].star_handler_full_names = [
+            h.handler_full_name
+            for h in star_handlers_registry.get_handlers_by_module_name(__name__)
+        ]
 
     async def terminate(self) -> None:
         global _setu_handler, _fortune_handler
-
-        from .src.infrastructure import (
-            clear_fortune_repo,
-            clear_provider,
-            clear_repo,
-        )
-
-        if self._fortune_pregenerate_task is not None:
-            self._fortune_pregenerate_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._fortune_pregenerate_task
-            self._fortune_pregenerate_task = None
+        from .src.infrastructure.astrbot.config import clear_config
+        from .src.infrastructure.persistence import clear_fortune_repo, clear_repo
+        from .src.infrastructure.persistence.database import close_database
+        from .src.infrastructure.providers import clear_provider
+        from .src.shared.cache import clear_cache
 
         try:
             unregister_setu_llm_tools()
-            unregister_fortune_llm_tools()
-        except Exception:
-            pass
-
-        clear_provider()
-        clear_repo()
-        clear_fortune_repo()
-        await stop_revoke_scheduler()
-        clear_send_cache()
-
-        _setu_handler = None
-        _fortune_handler = None
-
-        logger.info("SetuPlugin terminated")
-
-    async def _fortune_pregenerate_loop(self) -> None:
-        """Cache fortune card images for recently active users after day rollover."""
-        while True:
-            await asyncio.sleep(_seconds_until_next_midnight())
-            await self._pregenerate_active_fortune_images()
-
-    async def _pregenerate_active_fortune_images(self) -> None:
-        if _fortune_handler is None:
-            return
-        try:
-            cached_count = await _fortune_handler.pregenerate_active_fortune_images()
-            if cached_count:
-                logger.info(
-                    "[fortune] Pregenerated %d rendered fortune card caches",
-                    cached_count,
+            if _fortune_handler is not None:
+                from .src.infrastructure.astrbot.commands.fortune import (
+                    unregister_llm_tools,
                 )
-            else:
-                logger.debug("[fortune] No fortune card caches pregenerated")
-        except Exception as exc:
-            logger.warning(
-                "[fortune] Failed to pregenerate fortune card caches: %s", exc
-            )
 
-    def _runtime_plugin_config(self) -> dict[str, Any]:
-        """Return the plugin-scoped config dict passed in by AstrBot."""
-        if isinstance(self._plugin_config, dict):
-            return dict(self._plugin_config)
-        items = getattr(self._plugin_config, "items", None)
-        if callable(items):
-            return dict(items())
-        return dict(self._plugin_config)
-
-    def _heal_runtime_plugin_config(self, raw_config: dict[str, Any]) -> dict[str, Any]:
-        """Heal legacy or invalid config values before runtime initialization."""
-        schema = _load_conf_schema()
-        healed_config, changes = heal_astrbot_plugin_config(raw_config, schema)
-        if not changes:
-            return healed_config
-        logger.info("SetuPlugin healed config: %s", "; ".join(changes))
-        if not self._persist_runtime_plugin_config(healed_config):
-            logger.warning("SetuPlugin config healed for runtime but could not persist")
-        return healed_config
-
-    def _persist_runtime_plugin_config(self, healed_config: dict[str, Any]) -> bool:
-        """Best-effort write-back for AstrBotConfig-like mapping objects."""
-        target = self._plugin_config
-        try:
-            clear = getattr(target, "clear", None)
-            update = getattr(target, "update", None)
-            if callable(clear) and callable(update):
-                clear()
-                update(healed_config)
-                target.save_config()
-                return True
-
-            pop = getattr(target, "pop", None)
-            keys = getattr(target, "keys", None)
-            if callable(pop) and callable(keys):
-                for key in list(keys()):
-                    if key not in healed_config:
-                        pop(key, None)
-
-            for key, value in healed_config.items():
-                target[key] = value
-            target.save_config()
-            return True
-        except Exception as exc:
-            logger.debug("failed to persist healed Setu config: %s", exc)
-            return False
+                unregister_llm_tools()
+            await stop_revoke_scheduler()
+        finally:
+            await close_database()
+            clear_send_cache()
+            clear_cache()
+            clear_provider()
+            clear_repo()
+            clear_fortune_repo()
+            clear_config()
+            _setu_handler = None
+            _fortune_handler = None
 
     # ==================== Setu Commands ====================
 
@@ -332,11 +242,11 @@ class SetuPlugin(Star):
         ):
             yield result
 
-    @filter.command("setu")
+    @filter.command("色图", alias={"setu"})
     async def setu_command(
-        self, event: AstrMessageEvent, count: str = "1", *, tags: str = ""
+        self, event: AstrMessageEvent, count: str = "1", *, tags: GreedyStr
     ) -> AsyncGenerator[Any, None]:
-        """/setu [count] [tags...]"""
+        """/色图 [count] [tags...]"""
         if _setu_handler is None:
             yield event.plain_result("插件未初始化")
             return
@@ -345,7 +255,7 @@ class SetuPlugin(Star):
 
     @filter.command("随机本子", alias={"本子", "doujinshi"})
     async def random_doujinshi_command(
-        self, event: AstrMessageEvent, *, tags: str = ""
+        self, event: AstrMessageEvent, *, tags: GreedyStr
     ) -> AsyncGenerator[Any, None]:
         """获取可选标签的随机本子 PDF。"""
         if _setu_handler is None:
@@ -368,24 +278,50 @@ class SetuPlugin(Star):
             yield result
 
     @filter.command("刷新运势")
-    async def fortune_refresh_command(
-        self, event: AstrMessageEvent, args: str = ""
-    ) -> AsyncGenerator[Any, None]:
-        """刷新运势 [我|本群|全局]"""
-        if _fortune_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
+    async def fortune_refresh_command(self, event: AstrMessageEvent):
+        async for result in _fortune_handler.refresh_fortune_command(event):
+            yield result
 
+    @filter.command("刷新全局运势")
+    async def fortune_refresh_all_command(self, event: AstrMessageEvent):
+        async for result in _fortune_handler.refresh_all_fortune_command(event):
+            yield result
+
+    @filter.command_group("运势偏好")
+    async def preference(self, event: AstrMessageEvent):
+        """查看或修改个人运势主题与搜索标签。"""
+
+    async def _preference_result(self, event, field=None, value=None):
         try:
-            target = _resolve_fortune_refresh_target(event, args)
-        except ValueError as exc:
-            yield event.plain_result(str(exc))
-            return
+            yield event.plain_result(
+                await _fortune_handler.preference(event, field, value)
+            )
+        except Exception as exc:
+            yield event.plain_result(f"偏好设置失败：{exc}")
 
-        handler_map = {
-            "self": _fortune_handler.refresh_fortune_command,
-            "group": _fortune_handler.refresh_group_fortune_command,
-            "all": _fortune_handler.refresh_all_fortune_command,
-        }
-        async for result in handler_map[target](event):
+    @preference.command("查看")
+    async def preference_show(self, event: AstrMessageEvent):
+        async for result in self._preference_result(event):
+            yield result
+
+    @preference.command("主题")
+    async def preference_theme(self, event: AstrMessageEvent, *, theme: GreedyStr):
+        async for result in self._preference_result(event, "theme", theme):
+            yield result
+
+    @preference.command("标签")
+    async def preference_tags(self, event: AstrMessageEvent, *, tags: GreedyStr):
+        async for result in self._preference_result(
+            event, "tags", json.dumps(tags.split(), ensure_ascii=False)
+        ):
+            yield result
+
+    @preference.command("重置主题")
+    async def preference_reset_theme(self, event: AstrMessageEvent):
+        async for result in self._preference_result(event, "theme", None):
+            yield result
+
+    @preference.command("重置标签")
+    async def preference_reset_tags(self, event: AstrMessageEvent):
+        async for result in self._preference_result(event, "tags", None):
             yield result

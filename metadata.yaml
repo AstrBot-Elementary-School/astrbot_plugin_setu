@@ -1,6 +1,6 @@
 name: astrbot_plugin_setu
 display_name: 瑟瑟！
-version: v3.2.0
+version: v4.0.0
 author: FlanChanXwO
 desc: 随机福利图与随机本子文件插件，支持标签与数量、图片分级控制，以及 PDF/ZIP 两种本子发送格式。
 repo: https://github.com/FlanChanXwO/astrbot_plugin_setu

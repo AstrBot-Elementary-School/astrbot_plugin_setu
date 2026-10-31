@@ -46,7 +46,6 @@
 |--------|------|------|--------|--------|
 | `doujinshi_send_mode` | 字符串 | 随机本子文件格式；两种模式都直接发送普通文件 | `pdf` / `archive` | `pdf` |
 | `doujinshi_max_page` | 整数 | 随机本子最大页数，超过该页数的本子会被 API 过滤 | ≥0，`0` 表示不限 | `0` |
-| `delivery.html_card_strategy` | 字符串 | 图片卡片发送方式 | `never` / `fallback` / `always` | `fallback` |
 | `platform_transports` | template_list | 平台传输能力模板；当前内置 NapCat 模板 | 见下文 | `[]` |
 | `auto_revoke_targets` | 列表 | 自动撤回内容 | `setu` / `fortune` / `doujinshi` | `["doujinshi"]` |
 | `auto_revoke_scope` | 字符串 | Setu 图片自动撤回范围 | `none` / `sfw` / `r18` / `all` | `none` |
@@ -59,20 +58,7 @@ WebP 等格式转换为 PNG；图片按页面可用范围等比缩放。
 生成或发送确认失败使用内置 `r18_docx_failed` 提示并结束当前发送，
 确认超时保留 pending 状态，避免重复发送。SFW 和关闭 DOCX 时沿用图片发送。
 自动撤回仍受 `auto_revoke_targets`、范围和延时控制。
-文件在插件数据目录的 `send_cache/` 保留缓存 TTL 后清理，即使图片缓存关闭仍执行清理；
-DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
-
-### HTML 卡片发送
-
-| 策略 | 说明 |
-|------|------|
-| `never` | 从不使用 HTML 卡片，直接发送原图 |
-| `fallback`（默认） | 确认发送失败时自动降级为 HTML 卡片 |
-| `always` | 总是使用 HTML 卡片包装发送 |
-
-卡片渲染会将完整图片内嵌到 HTML 模板，发送至 AstrBot 配置的 t2i 服务。使用远程 t2i 时，该服务会收到图片内容；请确认服务可信且适合处理这些图片。若希望图片只走原有平台发送链路，将 `delivery.html_card_strategy` 设为 `never`。
-
-发送接口超时或 OneBot/NapCat 类适配器未返回 message id 时，插件会把结果标记为“可能仍在送达”，不会立刻触发 NapCat 流式或 HTML 卡片 fallback，避免原图稍后送达时又重复发送降级图片。明确抛出的发送异常仍会进入原有 fallback 链路。
+文件写入 `cache/setu/`，发送期间持有使用权；缓存关闭时，收到发送确认后删除。确认待定时保留文件，避免平台仍在读取时被删除。
 
 ### 自动撤回内容与范围
 
@@ -87,7 +73,7 @@ DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
 | `r18` | 只撤回 R18 Setu 图片或 R18 Docx 文件 |
 | `all` | SFW 与 R18 Setu 发送都撤回 |
 
-色图和今日运势的消息撤回依赖 OneBot-like 平台返回的 `message_id`。如果平台不支持 `delete_msg`、发送返回里没有 `message_id`，或删除失败，插件只记录 warning，不阻止消息发送。已登记的撤回任务会写入插件数据目录中的 `revoke_tasks.json`，插件退出时仅停止内存计时，重启后仍按原到期时间恢复。旧版 `delivery.auto_revoke_r18` 启动时会迁移为 `auto_revoke_scope`：`true` → `r18`，`false` → `none`，迁移后旧字段会被移除。
+色图和今日运势的消息撤回依赖 OneBot-like 平台返回的 `message_id`。已登记任务保存在统一数据库的 `setu_schedule_task` 表，重启后按原到期时间恢复。执行失败记录完整错误，沿用现有连续失败处理规则。
 
 ### 随机本子文件格式
 
@@ -106,11 +92,7 @@ DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
 
 ### 自动撤回与本子文件
 
-`auto_revoke_delay` 同时控制 `auto_revoke_targets` 中启用的 Setu 图片、今日运势消息和 OneBot/NapCat 群聊中的随机本子普通文件消息。默认 `30` 秒；设为 `0` 会关闭全部自动清理；如需 30 分钟，设为 `1800`。旧 `doujinshi_file_cleanup_delay` 会在插件启动时迁移到新字段；两者同时存在时以 `auto_revoke_delay` 为准。
-
-待撤回记录统一保存于插件运行数据目录的 `revoke_tasks.json`。本子发送时会直接调用 OneBot `send_group_msg` 取得普通文件消息的 `message_id`，并立即将撤回任务持久化；到期后统一调用 `delete_msg`。插件不依赖 `get_group_root_files`、文件名或体积反查群文件，因此不会把合并转发附件误当作群文件处理。插件退出或重启只停止内存计时，下一次初始化会按原绝对到期时间恢复；已有 `doujinshi_file_cleanup_tasks.json` 会迁移到统一队列。OneBot action 不可用、发送结果没有 `message_id` 或删除 action 返回错误时，任务会保留并记录 warning，不会重复发送。实际到期删除失败时，任务会将连续失败次数持久化；前两次失败保留以便下次插件启动恢复，第三次连续失败会自动从 `revoke_tasks.json` 移除，避免无效任务无限累积。启用本子自动撤回后，发送成功会立即写入该文件并记录“已登记本子文件自动撤回”日志；若没有任务记录，可从 warning 区分调度器、插件上下文或 `message_id` 缺失的原因。
-
-旧版本已经写入的 `group_file` 任务没有对应的普通消息 `message_id`，也无法从空的群文件接口反向取得它；插件会保留这些旧任务，避免静默丢失状态。需要先在 QQ 客户端手动处理旧附件，再按需清理对应的旧任务记录。
+`auto_revoke_delay` 控制已启用内容的清理延迟，默认 30 秒，`0` 关闭。新的本子任务通过普通文件消息的 `message_id` 调用 `delete_msg`。历史群文件任务按实际目标导入，保留执行所需字段；缺少必要 SID 信息时迁移停止并完整报告源任务。
 
 ### NapCat 本地文件直通
 
@@ -125,12 +107,12 @@ DOCX 在 TTL 内免于容量淘汰，以保留异步文件上传所需路径。
 | 策略 | 说明 |
 |------|------|
 | `disabled`（默认） | 保持现有 base64 链路 |
-| `fallback` | 确认普通发送失败后先尝试 `file://` 直通，再尝试 stream / HTML |
+| `fallback` | 确认普通发送失败后先尝试 `file://` 直通，再尝试 stream |
 | `always` | 直发模式优先尝试 `file://` 直通，失败后回到原链路 |
 
 只有满足以下条件时才会直通：平台为 OneBot/NapCat 类；图片是本地真实文件；路径 resolve 后位于发送缓存目录或 NapCat 模板的 `local_file_allowed_roots` 中。Docker 部署需要 AstrBot 与 NapCat 共享同一路径，例如都能读取 `/AstrBot/data`。
 
-NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 NapCat 当前接口约束；分块原始字节大小固定为 64 KiB。旧版 NapCat 传输模式和本地路径字段仍作为兼容兜底，分块大小不再读取旧值，新配置建议使用 `platform_transports`。
+NapCat `upload_file_stream` 的 `chunk_data` 使用 base64 字符串；分块原始字节大小固定为 64 KiB，传输配置只读取 `platform_transports`。
 
 ## 模板覆盖配置
 
@@ -138,7 +120,7 @@ NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 Na
 |--------|------|------|
 | `provider_overrides` | template_list | 可选覆盖 provider 默认参数；Lolicon 支持图片尺寸、代理、UID、关键词、AI 过滤，SexNyan 支持代理、作者 UID、关键词 |
 | `custom_api_configs` | template_list | 自定义图片 API 列表 |
-| `tag_alias_templates` | template_list | 标签别名映射；添加后优先于旧文本格式 `tag_alias` |
+| `tag_alias_templates` | template_list | 标签别名映射；按模板配置别名 |
 
 ## 会话级覆盖
 
@@ -146,14 +128,14 @@ NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 Na
 
 `session_id` 使用 AstrBot 事件的 `unified_msg_origin`，可从 AstrBot 会话信息或事件日志取得，例如 `bot:GroupMessage:123`。必须完整匹配平台实例、消息类型和目标；裸群号不会跨平台匹配。
 
-两种模板均允许同一会话各一条，重复条目或非法值会阻止初始化并报告错误：
+两种模板均允许同一会话各一条，无效字段恢复默认，无法识别的条目丢弃：
 
 - `setu`：`content_mode`、`send_mode`、`r18_docx_mode`、`auto_revoke_scope`。默认 `inherit`；Docx 可选字符串 `true`／`false`，以区分显式关闭和继承。
 - `fortune`：背景 `content_mode`，默认 `inherit`；`override_tags` 默认 `false`；开启后使用 `tags`，即使 `tags` 为空也会覆盖全局标签。
 
 撤回范围仅过滤已在全局 `auto_revoke_targets` 启用的色图，不会单独开启撤回。删除模板恢复全局值，业务命令和 LLM 工具都使用相同的生效配置。
 
-运势预生成使用记录中的完整会话标识；旧记录缺少标识时继承全局。运势和图片缓存仍按用户与日期归属，不是每群独立一份；新配置不会主动清空今日卡片，需等待重新生成或使用 `/刷新运势`。
+运势以 `(session_id, user_id, date)` 唯一保存，同平台各会话的星级独立。个人偏好跨会话共享，命令见[个人运势偏好](commands.md#个人运势偏好)。
 
 ## 访问控制
 
@@ -165,7 +147,7 @@ NapCat `upload_file_stream` 的 `chunk_data` 仍是 base64 字符串，这是 Na
 
 SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话ID`）。同号的其他平台、群聊与私聊互不匹配；群聊规则适用于整个群，不再支持在群内单独拉黑某个成员。Setu 规则同时约束随机本子。
 
-未添加模板的功能不限；空白名单会拒绝该功能的所有会话。黑白名单不能重叠，重复模板、裸 ID 和非法模式都会报错。运势预生成同样检查记录中的 SID；配置限制时缺少 SID 的旧记录会跳过，不绕过权限。
+未添加模板的功能默认开放；空白名单拒绝全部会话。非法权限值恢复默认，可能使访问范围回到开放状态，保存或升级后请检查实际规则。
 
 ```json
 "safety": [
@@ -177,69 +159,42 @@ SID 使用 AstrBot 的完整 `unified_msg_origin`（`平台:消息类型:会话I
 ]
 ```
 
-## 内部默认与错误文案
+## 缓存与数据保留
 
-以下不再开放配置：缓存开启、TTL 2 小时、容量 200 条、启动清理；卡片间距和内边距均为 6；流式分块 64 KiB；补图轮次 3。旧调优值停止生效，传输模式和本地共享目录白名单仍可配置。
+`cache.setu`、`cache.fortune`、`cache.doujinshi` 默认均为 `false`，可分别开启。三类文件与临时文件共用固定 512 MiB 硬上限；优先淘汰最旧的闲置文件，正在发送或上传的文件保持可用。空间不足时终止本次写入并报告原因。关闭缓存时，发送确认后删除临时文件；确认待定的本地文件保留到本次插件卸载，避免平台读取中断；重载后纳入容量淘汰。
 
-失败和拒绝类提示集中保存在 `src/shared/config/messages.py`，通过 `resolve_message()` 替换 `{min_count}`、`{max_count}`、`{error}`、`{tags_info}`、`{feature}`、`{fortune}` 等占位符。发送成功和自动撤回登记不追加文字提示；`/刷新运势` 刷新自己的运势时返回固定确认文案；运势图发送失败时仍返回文字运势。这些文案固定在代码中，配置不提供覆盖入口；旧 `messages` 与 `message_overrides` 会在启动自愈时移除并记录日志。
+`daily_fortune` 和 `setu_history` 保留包含当天的滚动 30 天。启动及跨日后首次数据访问先清理过期运势，再清理过期且未被运势引用的图片历史及关联文件。
+
+普通提示位于 `src/shared/config/messages.py`；各主题运势标题、正文位于 `src/template/fortune/<主题>/text.json`。`messages` 和 `tip` 均按字符串键 `"0"`～`"7"` 对应星级；`arona`、`endfield`、`persona5`、`minecraft` 每组各十条备选，`minimal` 每组一条，每次渲染时分别随机抽取一条正文和寄语。开启运势缓存后会复用已生成的卡片。固定标识、装饰文字和图片说明直接写在主题的 `index.jinja2` 中。
 
 ## 今日运势
 
-命令与 LLM 工具共用运势图片发送流程，支持现有压缩与平台传输设置。运势卡片始终直发，不使用色图的合并转发或 R18 Word 包装；是否撤回只由 `auto_revoke_targets` 中的 `fortune` 决定。渲染或图片发送失败时提供文字运势。
+`fortune.card_theme` 为默认主题，默认 `random`（随机）。可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`。模板统一位于 `src/template/fortune/<主题>/index.jinja2`，样式为 `index.css`。
 
-背景图片使用“图片获取”中选择的图片来源，可单独设置分级和标签。关闭运势时，其余选项隐藏。
+配置面板将 `random` 显示为“随机”。`fortune.random_themes` 是“随机主题范围”多选项，默认勾选 `arona`、`endfield`、`persona5`、`minecraft`，可自行加入 `minimal`。默认主题或个人偏好设为随机时，每次查看从该范围中抽取，沿用当天星级。范围留空或包含无效主题时，保存后恢复默认范围。每个主题另有 `template.yaml`，记录 `version`（初始为 `"0.1"`）、`name`、`aliases`、`author`。插件当前只使用 `aliases` 解析偏好命令中的主题别名；编辑后重载插件生效。
 
-关闭 `fortune.enabled` 会停用获取、刷新、运势工具和后台预生成，不初始化运势数据库或渲染器；已有运势和缓存保留，持久化撤回任务照常恢复。
+主题优先使用个人偏好。背景搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效，分级继续受会话配置和权限约束。后端保存每日星级与背景历史关联，切换主题保持星级。
 
-更多配置中的 `fortune.allow_user_refresh` 默认关闭；开启后普通用户可刷新自己的运势，但仍须通过运势 SID 权限检查。本群刷新仍需管理员，全局刷新仍需超级管理员。“后台预生成运势”（`fortune.auto_refresh`）控制每日零点为近期活跃用户生成运势及图片缓存。关闭预生成不会关闭主动获取运势，也不表示沿用前一天的运势。
+`fortune.enabled=false` 时移除运势入口和工具，跳过运势处理器与渲染器初始化。统一数据库和撤回调度照常初始化。
+
+`fortune.allow_user_refresh` 默认关闭。管理员可用 `/刷新运势` 刷新本人，也可 At 指定用户；开启后普通用户可刷新本人。`/刷新全局运势` 需要超级管理员权限，清理当天全部运势与卡片缓存。
+
+## 注册开关
+
+- `setu_general.commands_enabled`：普通命令及偏好子命令，默认开启。
+- `setu_general.natural_language_enabled`：短语入口，默认开启。
+- `setu_general.llm_tools_enabled`：LLM 工具，默认开启。
+
+三个开关独立生效，关闭后移除实际注册项和相关元数据，保存并重载生效。
 
 ## 升级与恢复
 
-Atri 内置图片源已移除，`all` 只轮流使用 Lolicon 和 SexNyan。旧 `setu_general.api_type=atri` 在配置自愈前迁为 `lolicon` 并保存，日志会提示；保存失败则停止初始化。已有 Lolicon 参数、分级和 SID 权限保留，Atri 专属参数删除，不映射给其他来源。自定义 API 不限制地址中是否包含 Atri。随机本子仍调用 Atri 服务，需关闭 `delivery.doujinshi_enabled` 才能停用这条下载入口。
+运行目录为 `plugin_data/astrbot_plugin_setu/`，只保留 `db.sqlite` 与 `cache/{fortune,setu,doujinshi}/`。
 
-卡片配置由 `html_card.strategy` 迁入 `delivery.html_card_strategy`；新旧路径都有值时使用新路径，保存成功后移除旧字段。有效默认仍为 `fallback`。Schema 的新字段使用空值作为迁移占位，避免 AstrBot 提前补默认值覆盖旧设置；初始化后会写入实际值。隐藏的旧字段仅用于升级，不是配置入口。
+配置只接受当前结构：未知键删除，非法字段恢复默认，无法识别的模板项丢弃，清理后写回 AstrBot 配置。旧键、别名和类型猜测转换全部移除。**非法权限配置恢复默认可能开放访问，请检查 `safety`。**
 
-`setu_general.multi_api_strategy` 与 `fortune.api_type` 不再生效：多个图片源固定轮流使用，运势使用全局图片源。
+空字符串或空对象填入配置分组时，该分组恢复默认值。缺少完整 SID 的会话模板、缺少 HTTP/HTTPS 地址的自定义 API，以及选择 JSON 解析却未填写路径的 API 条目会被删除，其余有效条目保留。选择 `custom` 但没有有效 API 时，图片来源恢复为 `lolicon`。标签、代理等允许留空的字段继续保持为空。
 
-首次升级从 `StarTools.get_data_dir(self.name)` 返回的运行目录读取旧 `config.json` 和 `session_overrides.json`，将会话覆盖迁入插件配置。同一会话、同一字段冲突时以原 Pages 有效值为准，非冲突模板字段保留；旧撤回布尔值转换为 `r18`／`none`。
+数据库迁移位于 `src/infrastructure/persistence/migrations/`，按 `0001_initial.py` 格式顺序执行。`migration` 表记录版本、名称和应用时间；数据库变更和版本记录同事务提交。提交失败保留源数据，提交成功后才清理旧数据库、缓存、废弃配置与标记。清理中断时下次启动继续，清理完成后启动业务。
 
-旧平铺权限或四种用户／群组模板中的裸 ID 无法推导完整 SID。存在限制模式或任何名单（包括未启用名单）时会明确报错，保留原文件和配置；请在插件配置 `safety` 中明确填写新的 SID 模板，作为对旧权限的替换，然后重载。无权限规则时迁为空列表。
-
-完整读取和校验成功后才保存插件配置，保存成功后才写入 `config_templates_migrated_v1` 标记。读取、校验、保存或标记失败均会报错并停止初始化；先修复日志中的文件或值再重载，不要以清空旧文件绕过失败。
-
-迁移完成后只读插件配置，清空名单或删除模板不会重新导入。旧运行文件保留，供需要回退旧版本时恢复；回退后如再升级，需要先备份并核对两边配置，再决定是否删除迁移标记重新导入，避免覆盖新设置。插件不提供配置修改命令或配置修改 LLM 工具，也不再提供 Pages 页面。
-
-## 配置示例
-
-```json
-{
-  "setu_general": {
-    "api_type": "lolicon",
-    "content_mode": "mix",
-    "max_count": 5
-  },
-  "delivery": {
-    "send_mode": "auto",
-    "doujinshi_send_mode": "pdf",
-    "doujinshi_max_page": 0,
-    "auto_revoke_targets": ["setu", "doujinshi"],
-    "auto_revoke_scope": "r18",
-    "auto_revoke_delay": 1800,
-    "r18_docx_mode": false
-  },
-  "session_configs": [
-    {
-      "__template_key": "setu",
-      "session_id": "bot:GroupMessage:123",
-      "send_mode": "forward",
-      "content_mode": "sfw"
-    },
-    {
-      "__template_key": "fortune",
-      "session_id": "bot:GroupMessage:123",
-      "override_tags": true,
-      "tags": "猫耳"
-    }
-  ]
-}
-```
+只导入完整 SID 且位于 30 天窗口内的旧运势，缺 SID 的旧运势删除。旧撤回任务按实际目标迁移；必要会话信息无法恢复时，保留源文件、完整报告任务并停止初始化。升级前请保留运行目录备份，旧配置文件在新版迁移完成后清除。

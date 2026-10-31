@@ -14,13 +14,13 @@ from astrbot.api.event import AstrMessageEvent
 from ...application.session_config import SessionConfigService
 from ...application.setu.dto import ImagePayload
 from ...shared import get_logger
-from ...shared.config import MessagesConfig, should_auto_revoke
-from ...shared.send_cache import get_send_cache, schedule_send_cache_cleanup
+from ...shared.cache import get_cache
+from ...shared.config import should_auto_revoke
+from ...shared.send_cache import get_send_cache
 from ..astrbot.config import get_config, get_plugin_context
 from ..astrbot.session_identity import get_event_session_identity
 from .docx_service import R18DocxService
 from .dto import SendAttemptResult, SendOptions
-from .html_card_renderer import HtmlCardRenderer
 from .image_compressor import compress_image
 from .image_sources import local_image_path, read_image_bytes
 from .napcat_stream import upload_file_stream
@@ -30,7 +30,6 @@ from .send_batching import estimate_base64_bytes, split_send_batches
 from .send_strategies import (
     DirectSendStrategy,
     ForwardSendStrategy,
-    HtmlCardFallbackStrategy,
     resolve_send_mode,
 )
 
@@ -53,7 +52,6 @@ class ImageSender:
         self._content_type = content_type
         self._user_config = config
         self._log = log or logger
-        self._html_renderer: Any = HtmlCardRenderer()
         self._forward_supported_cache: dict[str, bool] = {}
 
     @property
@@ -71,27 +69,12 @@ class ImageSender:
         self, event: AstrMessageEvent, is_r18: bool = False
     ) -> SendOptions:
         config = self._config
-        if not config:
-            return SendOptions(
-                send_mode="image",
-                use_html_card=False,
-                auto_revoke=False,
-                auto_revoke_scope="none",
-                revoke_delay=30,
-                r18_docx_mode=False,
-                napcat_stream_mode="fallback",
-                napcat_stream_chunk_kb=64,
-                napcat_local_file_mode="disabled",
-                napcat_local_file_allowed_roots=(),
-            )
-
         identity = get_event_session_identity(event)
         settings = SessionConfigService(config).resolve(identity.session_id)
         send_mode = settings.send_mode
         auto_revoke_scope = settings.auto_revoke_scope
         r18_docx_mode = settings.r18_docx_mode if is_r18 else False
 
-        html_card_strategy = config.html_card_strategy
         revoke_delay = config.auto_revoke_delay
         is_fortune = self._content_type == "fortune"
         if is_fortune:
@@ -100,7 +83,6 @@ class ImageSender:
             auto_revoke_scope = "none"
         return SendOptions(
             send_mode=send_mode,
-            use_html_card=html_card_strategy != "never",
             auto_revoke=(
                 config.auto_revoke_fortune_enabled and revoke_delay > 0
                 if is_fortune
@@ -111,26 +93,29 @@ class ImageSender:
             auto_revoke_scope=auto_revoke_scope,
             revoke_delay=revoke_delay,
             r18_docx_mode=r18_docx_mode,
-            html_padding=config.html_card_padding,
-            html_gap=config.html_card_gap,
-            html_card_strategy=html_card_strategy,
             napcat_stream_mode=config.napcat_stream_mode,
-            napcat_stream_chunk_kb=int(getattr(config, "napcat_stream_chunk_kb", 64)),
-            napcat_local_file_mode=str(
-                getattr(config, "napcat_local_file_mode", "disabled")
-            ),
+            napcat_stream_chunk_kb=config.napcat_stream_chunk_kb,
+            napcat_local_file_mode=config.napcat_local_file_mode,
             napcat_local_file_allowed_roots=tuple(
-                getattr(config, "napcat_local_file_allowed_roots", ()) or ()
+                config.napcat_local_file_allowed_roots
             ),
-            compress_enabled=bool(getattr(config, "compress_enabled", False)),
-            compress_max_mb=int(getattr(config, "compress_max_mb", 4)),
+            compress_enabled=config.compress_enabled,
+            compress_max_mb=config.compress_max_mb,
         )
 
-    def set_html_renderer(self, renderer: Any) -> None:
-        """Set HTML card renderer."""
-        self._html_renderer = renderer
+    async def send_images(self, payload, event):
+        pending = False
+        try:
+            async for result in self._send_images(payload, event):
+                if isinstance(result, dict):
+                    pending = pending or result.get("send_pending", False)
+                yield result
+        finally:
+            if not pending:
+                for path in payload.file_paths:
+                    get_cache().release(path, keep=self._config.cache.setu)
 
-    async def send_images(
+    async def _send_images(
         self,
         payload: ImagePayload,
         event: AstrMessageEvent,
@@ -165,40 +150,10 @@ class ImageSender:
                 message = self._resolve_message("r18_docx_failed")
                 if message:
                     yield event.plain_result(message)
-            finally:
-                cache = get_send_cache()
-                if cache is not None:
-                    schedule_send_cache_cleanup(cache.ttl_seconds + 1)
             return
 
         original_chain = self._build_image_chain(items)
         chain = original_chain
-
-        if options.html_card_strategy == "always":
-            self._log.info(
-                "[send] html-card-only mode: session=%s, count=%d",
-                self._session_label(event),
-                payload.count,
-            )
-            html_result = await self._try_html_card_fallback(
-                event, chain, options, payload.r18
-            )
-            if not html_result.accepted:
-                fail_message = self._send_failed_message()
-                if fail_message:
-                    yield event.plain_result(fail_message)
-            else:
-                await self._schedule_revoke_for_result(event, html_result, options)
-                if html_result.pending:
-                    yield {
-                        "send_success": True,
-                        "image_count": payload.count,
-                        "send_pending": True,
-                    }
-                else:
-                    yield {"send_success": True, "image_count": payload.count}
-            schedule_send_cache_cleanup()
-            return
 
         supports_forward = self._is_forward_supported(event)
         effective_mode = resolve_send_mode(
@@ -302,8 +257,6 @@ class ImageSender:
                 )
                 yield {"send_success": True, "image_count": payload.count}
 
-        schedule_send_cache_cleanup()
-
     async def _send_chain(
         self,
         event: AstrMessageEvent,
@@ -325,6 +278,7 @@ class ImageSender:
                 chain = streamed_chain
 
         if effective_mode == "forward":
+            chain = await self._materialize_local_chain(chain)
             return await ForwardSendStrategy(self._context).send_with_status(
                 event, chain, options.auto_revoke
             )
@@ -404,7 +358,7 @@ class ImageSender:
         batch_num: int,
         total_batches: int,
     ) -> SendAttemptResult:
-        """Send one batch with fallback logic (stream → HTML card)."""
+        """Send one batch with fallback logic (NapCat transport)."""
         self._log.info(
             "[send] batch %d/%d: session=%s, images=%d, mode=%s",
             batch_num,
@@ -443,7 +397,7 @@ class ImageSender:
             if local_result.accepted:
                 send_result = local_result
 
-        # forward 失败跳过 stream,直接 HTML 卡片(stream + forward 引用必崩)
+        # 合并转发保留自身的发送结果。
         if (
             not send_result.accepted
             and effective_mode != "forward"
@@ -464,18 +418,6 @@ class ImageSender:
                     event, streamed, effective_mode, retry_options
                 )
 
-        if not send_result.accepted and options.use_html_card:
-            self._log.warning(
-                "[send] batch %d failed, trying HTML card: session=%s",
-                batch_num,
-                self._session_label(event),
-            )
-            # HTML 卡片接受 Comp.Image chain
-            html_result = await HtmlCardFallbackStrategy(
-                self._context, self._html_renderer
-            ).send_with_status(event, batch_chain, options.auto_revoke)
-            send_result = html_result
-
         return send_result
 
     def _without_stream_upload(self, options: SendOptions) -> SendOptions:
@@ -495,59 +437,39 @@ class ImageSender:
         docx_path = await asyncio.to_thread(
             self._docx_service.create_docx_with_images, list(images), list(tags)
         )
-        send_result = await DirectSendStrategy(self._context).send_with_status(
-            event,
-            [Comp.File(file=str(docx_path), name=docx_path.name)],
-            options.auto_revoke,
-        )
-        if not send_result.accepted:
-            fail_message = self._resolve_message("r18_docx_failed")
-            if fail_message:
-                yield event.plain_result(fail_message)
-            return
+        pending = False
+        try:
+            send_result = await DirectSendStrategy(self._context).send_with_status(
+                event,
+                [Comp.File(file=str(docx_path), name=docx_path.name)],
+                options.auto_revoke,
+            )
+            pending = send_result.pending
+            if not send_result.accepted:
+                fail_message = self._resolve_message("r18_docx_failed")
+                if fail_message:
+                    yield event.plain_result(fail_message)
+                return
 
-        await self._schedule_revoke_for_result(event, send_result, options)
-        if send_result.pending:
-            yield {
-                "send_success": True,
-                "image_count": len(images),
-                "send_pending": True,
-            }
-        else:
-            yield {"send_success": True, "image_count": len(images)}
+            await self._schedule_revoke_for_result(event, send_result, options)
+            if send_result.pending:
+                yield {
+                    "send_success": True,
+                    "image_count": len(images),
+                    "send_pending": True,
+                }
+            else:
+                yield {"send_success": True, "image_count": len(images)}
 
-    async def _try_html_card_fallback(
-        self,
-        event: AstrMessageEvent,
-        chain: list[Comp.Image],
-        options: SendOptions,
-        is_r18: bool,
-    ) -> SendAttemptResult:
-        """Try HTML card fallback."""
-        if not self._html_renderer:
-            return SendAttemptResult.failed("html renderer unavailable")
-
-        strategy = HtmlCardFallbackStrategy(
-            self._context,
-            self._html_renderer,
-            {
-                "card_padding": options.html_padding,
-                "card_gap": options.html_gap,
-            },
-        )
-        return await strategy.send_with_status(event, chain, options.auto_revoke)
+        finally:
+            if not pending:
+                get_cache().release(docx_path, keep=self._config.cache.setu)
 
     def _payload_items(self, payload: ImagePayload) -> tuple[ImageItem, ...]:
-        if payload.items:
-            return tuple(payload.items)
-        items: list[ImageItem] = []
-        items.extend(payload.file_paths)
-        items.extend(payload.raw_bytes)
-        return tuple(items)
+        return payload.items or (*payload.file_paths, *payload.raw_bytes)
 
     def _build_image_chain(self, images: tuple[ImageItem, ...]) -> list[Comp.Image]:
-        """Build image components from local paths or in-memory bytes."""
-        chain: list[Comp.Image] = []
+        chain = []
         for item in images:
             if isinstance(item, Comp.Image):
                 chain.append(item)
@@ -560,7 +482,7 @@ class ImageSender:
     async def _read_image_bytes(
         self, images: tuple[ImageItem, ...]
     ) -> tuple[bytes, ...]:
-        """Materialize image items as bytes for DOCX/HTML-only paths."""
+        """Materialize image items as bytes for DOCX output."""
         result: list[bytes] = []
         for item in images:
             if isinstance(item, bytes):
@@ -800,10 +722,10 @@ class ImageSender:
         return scheduled
 
     def _send_failed_message(self) -> str | None:
-        return MessagesConfig.resolve_message("send_failed")
+        return self._resolve_message("send_failed")
 
     def _resolve_message(self, key: str, **kwargs: Any) -> str | None:
-        return MessagesConfig.resolve_message(key, **kwargs)
+        return self._config.resolve_message(key, **kwargs)
 
     def _log_send_summary(
         self,
@@ -818,7 +740,7 @@ class ImageSender:
         self._log.info(
             "[send] payload ready: session=%s, platform=%s, count=%d, "
             "r18=%s, tags=%s, items=%d(paths=%d,bytes=%d,components=%d), "
-            "config_mode=%s, html_strategy=%s, napcat_stream=%s, "
+            "config_mode=%s, napcat_stream=%s, "
             "stream_chunk_kb=%d, local_file=%s",
             self._session_label(event),
             self._get_platform_name(event) or "unknown",
@@ -830,7 +752,6 @@ class ImageSender:
             raw_bytes,
             image_components,
             options.send_mode,
-            options.html_card_strategy,
             options.napcat_stream_mode,
             options.napcat_stream_chunk_kb,
             options.napcat_local_file_mode,

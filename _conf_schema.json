@@ -146,6 +146,12 @@
             }
           }
         }
+      },
+      "commands_enabled": {
+        "type": "bool",
+        "description": "注册普通命令",
+        "default": true,
+        "hint": "关闭后普通命令及运势偏好子命令停止注册，重载插件后生效。"
       }
     }
   },
@@ -249,20 +255,6 @@
           "show_advanced": true
         }
       },
-      "html_card_strategy": {
-        "type": "string",
-        "description": "图片卡片发送",
-        "hint": "fallback：普通发送失败后尝试卡片；never：不用卡片；always：始终用卡片。卡片渲染会将完整图片上传到 AstrBot 配置的 t2i 服务；使用远程服务时，图片将传至该服务。若不希望上传，请选 never。",
-        "default": null,
-        "options": [
-          "never",
-          "fallback",
-          "always"
-        ],
-        "condition": {
-          "show_advanced": true
-        }
-      },
       "platform_transports": {
         "type": "template_list",
         "description": "平台传输设置",
@@ -329,6 +321,59 @@
         "description": "启用今日运势",
         "default": true
       },
+      "card_theme": {
+        "type": "string",
+        "description": "卡片视觉风格",
+        "hint": "默认随机；每次查看从“随机主题范围”中抽取，保留当天星级。个人主题偏好优先生效。",
+        "default": "random",
+        "options": [
+          "endfield",
+          "arona",
+          "persona5",
+          "minecraft",
+          "minimal",
+          "random"
+        ],
+        "labels": [
+          "终末地",
+          "蔚蓝档案",
+          "女神异闻录5",
+          "我的世界",
+          "简约",
+          "随机"
+        ],
+        "condition": {
+          "enabled": true
+        }
+      },
+      "random_themes": {
+        "type": "list",
+        "description": "随机主题范围",
+        "hint": "多选。默认主题或个人偏好设为随机时，从勾选的主题中抽取。默认排除简约；留空或填写无效主题时恢复默认范围。",
+        "default": [
+          "arona",
+          "endfield",
+          "persona5",
+          "minecraft"
+        ],
+        "options": [
+          "arona",
+          "endfield",
+          "persona5",
+          "minecraft",
+          "minimal"
+        ],
+        "labels": [
+          "蔚蓝档案",
+          "终末地",
+          "女神异闻录5",
+          "我的世界",
+          "简约"
+        ],
+        "condition": {
+          "enabled": true
+        }
+      },
       "content_mode": {
         "type": "string",
         "description": "背景图片分级",
@@ -365,16 +410,6 @@
         "description": "允许普通用户刷新",
         "hint": "关闭后，仅管理员可以刷新自己的运势。",
         "default": false,
-        "condition": {
-          "enabled": true,
-          "show_advanced": true
-        }
-      },
-      "auto_refresh": {
-        "type": "bool",
-        "description": "后台预生成运势",
-        "hint": "启动后及每天零点，为近期活跃用户提前生成运势和图片缓存。",
-        "default": true,
         "condition": {
           "enabled": true,
           "show_advanced": true
@@ -490,7 +525,7 @@
   "safety": {
     "type": "template_list",
     "description": "访问控制",
-    "hint": "按完整 SID 控制整个会话；未添加规则时不限制。",
+    "hint": "按完整 SID 控制整个会话；未添加规则时不限制。非法权限值会恢复默认，可能重新开放访问，保存后请检查。",
     "default": [],
     "templates": {
       "setu": {
@@ -657,7 +692,7 @@
       "custom_api_configs": {
         "type": "template_list",
         "description": "自定义图片 API",
-        "hint": "图片来源选 custom 时使用。",
+        "hint": "图片来源选 custom 时使用。空白或无效的条目会被删除；没有有效条目时，图片来源恢复为 lolicon。",
         "default": [],
         "templates": {
           "api_template": {
@@ -673,7 +708,7 @@
                 "type": "string",
                 "description": "API 地址",
                 "hint": "支持 {num}、{r18}、{tags} 占位符。",
-                "default": "https://api.example.com/images?num={num}&tag={tags}"
+                "default": ""
               },
               "method": {
                 "type": "string",
@@ -714,10 +749,25 @@
       }
     }
   },
-  "html_card": {
-    "type": "string",
-    "description": "旧卡片配置（升级迁移用）",
-    "default": null,
-    "invisible": true
+  "cache": {
+    "type": "object",
+    "description": "文件缓存",
+    "items": {
+      "setu": {
+        "type": "bool",
+        "description": "保留色图缓存",
+        "default": false
+      },
+      "fortune": {
+        "type": "bool",
+        "description": "保留运势卡片缓存",
+        "default": false
+      },
+      "doujinshi": {
+        "type": "bool",
+        "description": "保留本子缓存",
+        "default": false
+      }
+    }
   }
 }

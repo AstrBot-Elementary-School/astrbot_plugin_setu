@@ -1,0 +1,20 @@
+@font-face {font-family:'NotoSansSC-Regular';src:url('../../res/fonts/NotoSansSC-Regular.woff2');}
+@font-face {font-family:'NotoSansSC-Bold';src:url('../../res/fonts/NotoSansSC-Bold.woff2');}
+
+
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #eeede9; color: #252a28; font-family: 'NotoSansSC-Regular', sans-serif; }
+    .fortune-card { width: 440px; margin: auto; background: #faf7f0; border-radius: 4px; overflow: hidden; }
+    .content { padding: 32px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; font-size: 13px; color: #777b74; }
+    .username { color: #353c36; overflow-wrap: anywhere; white-space: nowrap; overflow: hidden; }
+    time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .result { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 28px 0 24px; }
+    h1 { margin: 0; font-family: 'NotoSansSC-Bold', sans-serif; font-size: 56px; font-weight: normal; color: #9d433b; letter-spacing: 6px; line-height: 1.25; overflow-wrap: anywhere; }
+    .flower { width: 66px; height: 66px; flex-shrink: 0; color: #ae5146; }
+    .petal { fill: none; stroke: currentColor; stroke-width: 1; }
+    .petal.filled { fill: currentColor; }
+    .description { margin: 0; padding-top: 24px; border-top: 1px solid #e1d9cb; font-size: 16px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .extra { margin: 18px 0 0; font-size: 13px; line-height: 1.8; color: #777b74; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .image { display: block; width: calc(100% - 32px); height: auto; max-height: 540px; margin: 16px 16px 0; object-fit: cover; object-position: center 20%; border-radius: 2px; }
+    @media (max-width: 487px) { body { padding: 16px; } .fortune-card { width: 100%; } .content { padding: 28px; } }

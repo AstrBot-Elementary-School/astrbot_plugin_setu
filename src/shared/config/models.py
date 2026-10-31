@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     BaseModel,
@@ -19,6 +20,7 @@ from pydantic import (
 )
 
 from ...domain.setu.triggers import compile_trigger
+from .messages import MessagesConfig
 
 
 class ImageSize(str, Enum):
@@ -116,12 +118,15 @@ class NapcatLocalFileModeStr(str, Enum):
     ALWAYS = "always"
 
 
-class HtmlCardStrategyStr(str, Enum):
-    """HTML card strategies."""
+class FortuneCardThemeStr(str, Enum):
+    """Fortune card visual themes."""
 
-    NEVER = "never"
-    FALLBACK = "fallback"
-    ALWAYS = "always"
+    MINIMAL = "minimal"
+    ENDFIELD = "endfield"
+    ARONA = "arona"
+    PERSONA_5 = "persona5"
+    MINECRAFT = "minecraft"
+    RANDOM = "random"
 
 
 class AccessControlModeStr(str, Enum):
@@ -137,29 +142,36 @@ class ProviderConfig(BaseModel):
 
     image_size: ImageSize = ImageSize.REGULAR
     proxy: str = ""
-    aspect_ratio: AspectRatio | None = None
+    aspect_ratio: AspectRatio | Literal[""] = ""
     uid: list[int] = Field(default_factory=list)
     keyword: str = ""
     exclude_ai: bool = True
-
-    @field_validator("aspect_ratio", mode="before")
-    @classmethod
-    def normalize_empty_aspect_ratio(cls, value: Any) -> Any:
-        """Treat empty-string aspect ratio from schema/config files as None."""
-        if value == "":
-            return None
-        return value
 
 
 class CustomApiConfig(BaseModel):
     """Custom API configuration."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
+    template_key: Literal["api_template"] = Field(
+        "api_template", alias="__template_key"
+    )
     name: str = "My custom API"
     url: str = ""
-    method: str = "GET"
-    timeout: int = 30
-    parser_type: str = "auto"
+    method: Literal["GET", "POST"] = "GET"
+    timeout: int = Field(default=30, ge=1)
+    parser_type: Literal["auto", "json"] = "auto"
     json_path: str = ""
+
+    @model_validator(mode="after")
+    def validate_api(self) -> CustomApiConfig:
+        self.url = self.url.strip()
+        parsed = urlsplit(self.url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("自定义 API 需要完整的 HTTP 或 HTTPS 地址")
+        if self.parser_type == "json" and not self.json_path.strip():
+            raise ValueError("JSON 解析方式需要填写 JSON 路径")
+        return self
 
 
 class ProviderOverrideConfig(ProviderConfig):
@@ -212,6 +224,7 @@ class SetuGeneralConfig(BaseModel):
     api_type: ApiTypeStr = ApiTypeStr.LOLICON
     content_mode: ContentModeStr = ContentModeStr.SFW
     max_count: int = Field(default=10, ge=1, le=10)
+    commands_enabled: bool = True
     llm_tools_enabled: bool = True
     natural_language_enabled: bool = True
     trigger_templates: list[TriggerTemplateConfig] = Field(
@@ -228,7 +241,6 @@ class DeliveryConfig(BaseModel):
 
     show_advanced: bool = False
     send_mode: SendModeStr = SendModeStr.AUTO
-    html_card_strategy: HtmlCardStrategyStr = HtmlCardStrategyStr.FALLBACK
     doujinshi_enabled: bool = True
     doujinshi_send_mode: DoujinshiSendModeStr = DoujinshiSendModeStr.PDF
     doujinshi_max_page: int = Field(default=0, ge=0)
@@ -239,10 +251,6 @@ class DeliveryConfig(BaseModel):
     )
     auto_revoke_delay: int = Field(default=30, ge=0)
     platform_transports: list[PlatformTransportConfig] = Field(default_factory=list)
-    # 兼容旧版平铺 NapCat 配置；新配置入口是 platform_transports 模板。
-    napcat_stream_mode: NapcatStreamModeStr = NapcatStreamModeStr.FALLBACK
-    napcat_local_file_mode: NapcatLocalFileModeStr = NapcatLocalFileModeStr.DISABLED
-    napcat_local_file_allowed_roots: list[str] = Field(default_factory=list)
     compress_enabled: bool = False
     compress_max_mb: int = Field(default=4, ge=1, le=30)
 
@@ -252,10 +260,16 @@ class FortuneConfig(BaseModel):
 
     show_advanced: bool = False
     enabled: bool = True
+    card_theme: FortuneCardThemeStr = FortuneCardThemeStr.RANDOM
+    random_themes: list[
+        Literal["arona", "endfield", "persona5", "minecraft", "minimal"]
+    ] = Field(
+        default_factory=lambda: ["arona", "endfield", "persona5", "minecraft"],
+        min_length=1,
+    )
     tags: str = ""
     content_mode: ContentModeStr = ContentModeStr.SFW
     allow_user_refresh: bool = False
-    auto_refresh: bool = True
 
 
 class AccessControlTemplate(BaseModel):
@@ -307,8 +321,8 @@ class SessionTemplateBase(BaseModel):
     @classmethod
     def validate_session_id(cls, value: str) -> str:
         value = value.strip()
-        if not value:
-            raise ValueError("session_id 不能为空")
+        if len(value.split(":", 2)) != 3 or not all(value.split(":", 2)):
+            raise ValueError("session_id 需要完整 SID（平台:消息类型:会话ID）")
         return value
 
 
@@ -358,6 +372,12 @@ class ApiSectionConfig(BaseModel):
     custom_api_configs: list[CustomApiConfig] = Field(default_factory=list)
 
 
+class CacheConfig(BaseModel):
+    setu: bool = False
+    fortune: bool = False
+    doujinshi: bool = False
+
+
 class SetuPluginConfig(SessionOverridesConfig):
     """Root Pydantic model for Setu plugin configuration.
 
@@ -373,8 +393,9 @@ class SetuPluginConfig(SessionOverridesConfig):
     fortune: FortuneConfig = Field(default_factory=FortuneConfig)
     api: ApiSectionConfig = Field(default_factory=ApiSectionConfig)
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
 
-    # Convenience properties for backward compatibility
+    # 应用层使用的配置视图。
     @property
     def api_type(self) -> str:
         """Get API type."""
@@ -434,11 +455,6 @@ class SetuPluginConfig(SessionOverridesConfig):
         return self.delivery.auto_revoke_scope.value
 
     @property
-    def auto_revoke_r18(self) -> bool:
-        """Compatibility view: true when the current scope revokes R18."""
-        return should_auto_revoke(self.delivery.auto_revoke_scope, is_r18=True)
-
-    @property
     def auto_revoke_delay(self) -> int:
         """Get auto-revoke delay."""
         return self.delivery.auto_revoke_delay
@@ -459,17 +475,12 @@ class SetuPluginConfig(SessionOverridesConfig):
         return AutoRevokeTargetStr.DOUJINSHI in self.delivery.auto_revoke_targets
 
     @property
-    def doujinshi_file_cleanup_delay(self) -> int:
-        """兼容旧调用方：本子清理由统一撤回延迟控制。"""
-        return self.delivery.auto_revoke_delay
-
-    @property
     def napcat_stream_mode(self) -> str:
         """Get NapCat stream upload mode."""
         transport = self._platform_transport("napcat")
         if transport is not None:
             return transport.stream_mode.value
-        return self.delivery.napcat_stream_mode.value
+        return NapcatStreamModeStr.FALLBACK.value
 
     @property
     def napcat_stream_chunk_kb(self) -> int:
@@ -482,7 +493,7 @@ class SetuPluginConfig(SessionOverridesConfig):
         transport = self._platform_transport("napcat")
         if transport is not None:
             return transport.local_file_mode.value
-        return self.delivery.napcat_local_file_mode.value
+        return NapcatLocalFileModeStr.DISABLED.value
 
     @property
     def napcat_local_file_allowed_roots(self) -> list[str]:
@@ -490,7 +501,7 @@ class SetuPluginConfig(SessionOverridesConfig):
         transport = self._platform_transport("napcat")
         if transport is not None:
             return list(transport.local_file_allowed_roots)
-        return list(self.delivery.napcat_local_file_allowed_roots)
+        return list([])
 
     @property
     def compress_enabled(self) -> bool:
@@ -501,41 +512,6 @@ class SetuPluginConfig(SessionOverridesConfig):
     def compress_max_mb(self) -> int:
         """Get per-image compression target size in MiB."""
         return self.delivery.compress_max_mb
-
-    @property
-    def html_card_strategy(self) -> str:
-        """Get HTML card strategy."""
-        return self.delivery.html_card_strategy.value
-
-    @property
-    def html_card_padding(self) -> int:
-        """Get HTML card padding."""
-        return 6
-
-    @property
-    def html_card_gap(self) -> int:
-        """Get HTML card gap."""
-        return 6
-
-    @property
-    def cache_enabled(self) -> bool:
-        """Get cache enabled."""
-        return True
-
-    @property
-    def cache_ttl_hours(self) -> int:
-        """Get cache TTL hours."""
-        return 2
-
-    @property
-    def cache_max_items(self) -> int:
-        """Get cache max items."""
-        return 200
-
-    @property
-    def cache_cleanup_on_start(self) -> bool:
-        """Get cache cleanup on start."""
-        return True
 
     @property
     def exclude_ai(self) -> bool:
@@ -584,44 +560,9 @@ class SetuPluginConfig(SessionOverridesConfig):
         return self._provider_config("sexnyan").keyword
 
     @property
-    def custom_api(self) -> dict[str, Any]:
-        """Get custom API config."""
-        if self.api.custom_api_configs:
-            cfg = self.api.custom_api_configs[0]
-            return {
-                "url": cfg.url,
-                "method": cfg.method,
-                "timeout": cfg.timeout,
-            }
-        return {"url": "", "method": "GET", "timeout": 30}
-
-    @property
-    def api_response_parser(self) -> dict[str, Any]:
-        """Get API response parser config."""
-        if self.api.custom_api_configs:
-            cfg = self.api.custom_api_configs[0]
-            return {
-                "type": cfg.parser_type,
-                "json_path": cfg.json_path,
-            }
-        return {"type": "auto", "json_path": ""}
-
-    @property
     def custom_api_configs(self) -> list[dict[str, Any]]:
         """Get custom API configs."""
         return [cfg.model_dump() for cfg in self.api.custom_api_configs]
-
-    def get_custom_api_config(self, name: str | None = None) -> dict[str, Any] | None:
-        """Get custom API config by name."""
-        configs = self.api.custom_api_configs
-        if not configs:
-            return None
-        if name:
-            for cfg in configs:
-                if cfg.name == name:
-                    return cfg.model_dump()
-            return None
-        return configs[0].model_dump()
 
     def _provider_config(self, provider: str) -> ProviderConfig:
         """Return provider config from matching template, else built-in defaults."""
@@ -636,3 +577,7 @@ class SetuPluginConfig(SessionOverridesConfig):
             if item.template_key == platform:
                 return item
         return None
+
+    def resolve_message(self, key: str, **kwargs: Any) -> str | None:
+        """Resolve a built-in message with placeholder substitution."""
+        return MessagesConfig.resolve_message(key, **kwargs)

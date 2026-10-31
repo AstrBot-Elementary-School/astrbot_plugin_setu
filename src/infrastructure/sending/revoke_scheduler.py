@@ -10,18 +10,17 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from time import time
 from typing import Any
-from unittest.mock import Mock
 from uuid import uuid4
 
 from astrbot.api.event import AstrMessageEvent
 
 from ...shared import get_logger
+from ..astrbot.session_identity import get_event_session_identity
+from ..persistence.database import get_database
 from .platform_capabilities import is_onebot_like_platform
 
 logger = get_logger()
 
-_STORAGE_NAME = "revoke_tasks.json"
-_LEGACY_DOUJINSHI_STORAGE_NAME = "doujinshi_file_cleanup_tasks.json"
 _MESSAGE_TARGET = "message"
 _GROUP_FILE_TARGET = "group_file"
 _MAX_CONSECUTIVE_FAILURES = 3
@@ -42,7 +41,7 @@ class RevokeTask:
 
     task_id: str
     target: str
-    platform_id: str
+    session_id: str
     due_at: float
     message_id: str | None = None
     group_id: str | None = None
@@ -52,98 +51,34 @@ class RevokeTask:
     expected_file_size: int | None = None
     failure_count: int = 0
 
-    def to_dict(self) -> dict[str, object]:
-        """序列化为 JSON 存储结构。"""
-        payload: dict[str, object] = {
-            "task_id": self.task_id,
-            "target": self.target,
-            "platform_id": self.platform_id,
-            "due_at": self.due_at,
-        }
-        if self.message_id is not None:
-            payload["message_id"] = self.message_id
-        if self.group_id is not None:
-            payload["group_id"] = self.group_id
-        if self.file_id is not None:
-            payload["file_id"] = self.file_id
-        if self.file_name is not None:
-            payload["file_name"] = self.file_name
-        if self.target == _GROUP_FILE_TARGET and self.file_id is None:
-            payload["before_file_ids"] = list(self.before_file_ids)
-            if self.expected_file_size is not None:
-                payload["expected_file_size"] = self.expected_file_size
-        if self.failure_count:
-            payload["failure_count"] = self.failure_count
-        return payload
-
-    @classmethod
-    def from_dict(cls, payload: Mapping[str, object]) -> RevokeTask:
-        """从 JSON 存储结构恢复任务。"""
-        target = _required_text(payload, "target")
-        task_id = _required_text(payload, "task_id")
-        platform_id = _required_text(payload, "platform_id")
-        due_at = _required_due_at(payload)
-        failure_count = _optional_failure_count(payload.get("failure_count"))
-
-        if target == _MESSAGE_TARGET:
-            return cls(
-                task_id=task_id,
-                target=target,
-                platform_id=platform_id,
-                due_at=due_at,
-                message_id=_required_text(payload, "message_id"),
-                failure_count=failure_count,
-            )
-        if target == _GROUP_FILE_TARGET:
-            raw_file_id = payload.get("file_id")
-            if raw_file_id is None and "before_file_ids" not in payload:
-                raise ValueError("待识别群文件任务缺少 before_file_ids")
-            return cls(
-                task_id=task_id,
-                target=target,
-                platform_id=platform_id,
-                due_at=due_at,
-                group_id=_required_text(payload, "group_id"),
-                file_id=(
-                    _required_text(payload, "file_id")
-                    if raw_file_id is not None
-                    else None
-                ),
-                file_name=_required_text(payload, "file_name"),
-                before_file_ids=_optional_file_ids(payload.get("before_file_ids")),
-                expected_file_size=_optional_file_size(
-                    payload.get("expected_file_size")
-                ),
-                failure_count=failure_count,
-            )
-        raise ValueError(f"不支持的删除目标: {target}")
-
 
 class RecoverableRevokeScheduler:
     """统一维护消息撤回与群文件删除的持久化任务。"""
 
     def __init__(self, data_dir: Path | str, context: object) -> None:
-        data_path = Path(data_dir)
-        self._storage_path = data_path / _STORAGE_NAME
-        self._legacy_doujinshi_path = data_path / _LEGACY_DOUJINSHI_STORAGE_NAME
+        self._database = get_database()
         self._context = context
         self._records: dict[str, RevokeTask] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
         self._lock = asyncio.Lock()
 
-    @property
-    def storage_path(self) -> Path:
-        """返回统一撤回任务的持久化文件路径。"""
-        return self._storage_path
-
     async def initialize(self) -> None:
         """加载待删除任务，迁移旧本子队列并按到期时间恢复。"""
-        records, migrated_legacy_tasks = await asyncio.to_thread(self._load_records)
+        rows = await (
+            await self._database.connection.execute("SELECT * FROM setu_schedule_task")
+        ).fetchall()
+        records = [
+            RevokeTask(
+                task_id=row["id"],
+                session_id=row["session_id"],
+                target=row["target"],
+                due_at=row["due_at"],
+                **json.loads(row["payload"]),
+            )
+            for row in rows
+        ]
         async with self._lock:
             self._records = {record.task_id: record for record in records}
-            if migrated_legacy_tasks:
-                await self._persist_records()
-                await asyncio.to_thread(self._legacy_doujinshi_path.unlink)
             for record in records:
                 self._schedule_record(record)
 
@@ -194,7 +129,7 @@ class RecoverableRevokeScheduler:
         record = RevokeTask(
             task_id=uuid4().hex,
             target=_MESSAGE_TARGET,
-            platform_id=platform_id,
+            session_id=get_event_session_identity(event).session_id,
             due_at=time() + max(0, int(delay)),
             message_id=normalized_id,
         )
@@ -246,7 +181,7 @@ class RecoverableRevokeScheduler:
         record = RevokeTask(
             task_id=uuid4().hex,
             target=_GROUP_FILE_TARGET,
-            platform_id=platform_id,
+            session_id=get_event_session_identity(event).session_id,
             due_at=time() + delay,
             group_id=group_id,
             file_name=normalized_name,
@@ -436,75 +371,57 @@ class RecoverableRevokeScheduler:
         get_platform_inst = _callable_attr(self._context, "get_platform_inst")
         if get_platform_inst is None:
             raise RuntimeError("AstrBot context 不支持按平台 ID 获取适配器")
-        platform = get_platform_inst(record.platform_id)
+        platform = get_platform_inst(record.session_id.split(":", 2)[0])
         if platform is None:
-            raise RuntimeError(f"找不到平台适配器: {record.platform_id}")
+            raise RuntimeError(
+                f"找不到平台适配器: {record.session_id.split(':', 2)[0]}"
+            )
         get_client = _callable_attr(platform, "get_client")
         if get_client is None:
-            raise RuntimeError(f"平台不支持 OneBot 客户端: {record.platform_id}")
+            raise RuntimeError(
+                f"平台不支持 OneBot 客户端: {record.session_id.split(':', 2)[0]}"
+            )
         return get_client()
 
     async def _persist_records(self) -> None:
-        await asyncio.to_thread(self._write_records, tuple(self._records.values()))
-
-    def _load_records(self) -> tuple[tuple[RevokeTask, ...], bool]:
-        records = self._load_current_records()
-        legacy_records = self._load_legacy_doujinshi_records()
-        if not legacy_records:
-            return records, False
-
-        merged_records = {record.task_id: record for record in records}
-        for legacy_record in legacy_records:
-            current_record = merged_records.get(legacy_record.task_id)
-            if current_record is None:
-                merged_records[legacy_record.task_id] = legacy_record
-            elif current_record != legacy_record:
-                raise RuntimeError("撤回任务与旧本子清理任务存在冲突 ID")
-        return tuple(merged_records.values()), True
-
-    def _load_current_records(self) -> tuple[RevokeTask, ...]:
-        payload = _load_json_payload(self._storage_path, "撤回任务")
-        if payload is None:
-            return ()
-        if payload.get("version") != 1:
-            raise RuntimeError("撤回任务文件格式或版本无效")
-        raw_records = payload.get("tasks")
-        if not isinstance(raw_records, list):
-            raise RuntimeError("撤回任务文件缺少 tasks 列表")
-        return _parse_task_records(raw_records, RevokeTask.from_dict, "撤回任务")
-
-    def _load_legacy_doujinshi_records(self) -> tuple[RevokeTask, ...]:
-        payload = _load_json_payload(self._legacy_doujinshi_path, "旧本子清理任务")
-        if payload is None:
-            return ()
-        if payload.get("version") != 1:
-            raise RuntimeError("旧本子清理任务文件格式或版本无效")
-        raw_records = payload.get("tasks")
-        if not isinstance(raw_records, list):
-            raise RuntimeError("旧本子清理任务文件缺少 tasks 列表")
-        return _parse_task_records(
-            raw_records,
-            _legacy_doujinshi_task_from_dict,
-            "旧本子清理任务",
-        )
-
-    def _write_records(self, records: tuple[RevokeTask, ...]) -> None:
-        self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "version": 1,
-            "tasks": [record.to_dict() for record in records],
-        }
-        temporary_path = self._storage_path.with_name(
-            f".{self._storage_path.name}.{uuid4().hex}.tmp"
-        )
-        try:
-            temporary_path.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-            temporary_path.replace(self._storage_path)
-        finally:
-            temporary_path.unlink(missing_ok=True)
+        await self._database.cleanup()
+        async with self._database.lock:
+            db = self._database.connection
+            try:
+                await db.execute("DELETE FROM setu_schedule_task")
+                for record in self._records.values():
+                    if record.target == _MESSAGE_TARGET:
+                        payload = {"message_id": record.message_id}
+                    else:
+                        payload = {
+                            "group_id": record.group_id,
+                            "file_id": record.file_id,
+                        }
+                        if record.file_id is None:
+                            payload.update(
+                                file_name=record.file_name,
+                                before_file_ids=record.before_file_ids,
+                            )
+                            if record.expected_file_size is not None:
+                                payload["expected_file_size"] = (
+                                    record.expected_file_size
+                                )
+                    if record.failure_count:
+                        payload["failure_count"] = record.failure_count
+                    await db.execute(
+                        "INSERT INTO setu_schedule_task VALUES(?,?,?,?,?)",
+                        (
+                            record.task_id,
+                            record.session_id,
+                            record.target,
+                            record.due_at,
+                            json.dumps(payload),
+                        ),
+                    )
+                await db.commit()
+            except BaseException:
+                await db.rollback()
+                raise
 
 
 _scheduler: RecoverableRevokeScheduler | None = None
@@ -548,92 +465,6 @@ async def schedule_revoke(
         logger.warning("[revoke] 调度器尚未初始化，未登记 message_id=%s", message_id)
         return False
     return await scheduler.schedule_revoke(event, message_id, delay)
-
-
-def _legacy_doujinshi_task_from_dict(payload: Mapping[str, object]) -> RevokeTask:
-    return RevokeTask(
-        task_id=_required_text(payload, "task_id"),
-        target=_GROUP_FILE_TARGET,
-        platform_id=_required_text(payload, "platform_id"),
-        due_at=_required_due_at(payload),
-        group_id=_required_text(payload, "group_id"),
-        file_id=_required_text(payload, "file_id"),
-        file_name=_required_text(payload, "file_name"),
-    )
-
-
-def _load_json_payload(path: Path, label: str) -> Mapping[str, object] | None:
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"无法读取{label}文件: {path}") from exc
-    if not isinstance(payload, Mapping):
-        raise RuntimeError(f"{label}文件根节点无效")
-    return payload
-
-
-def _parse_task_records(
-    raw_records: list[object],
-    parser: Any,
-    label: str,
-) -> tuple[RevokeTask, ...]:
-    records: list[RevokeTask] = []
-    for index, item in enumerate(raw_records):
-        if not isinstance(item, Mapping):
-            raise RuntimeError(f"{label} #{index} 格式无效")
-        try:
-            records.append(parser(item))
-        except ValueError as exc:
-            raise RuntimeError(f"{label} #{index} 格式无效") from exc
-    if len({record.task_id for record in records}) != len(records):
-        raise RuntimeError(f"{label}文件包含重复任务 ID")
-    return tuple(records)
-
-
-def _required_text(payload: Mapping[str, object], key: str) -> str:
-    value = payload.get(key)
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{key} 必须是非空字符串")
-    return value.strip()
-
-
-def _required_due_at(payload: Mapping[str, object]) -> float:
-    due_at = payload.get("due_at")
-    if not isinstance(due_at, int | float) or isinstance(due_at, bool):
-        raise ValueError("due_at 必须是数字")
-    return float(due_at)
-
-
-def _optional_file_ids(value: object) -> tuple[str, ...]:
-    if value is None:
-        return ()
-    if not isinstance(value, list):
-        raise ValueError("before_file_ids 必须是列表")
-    file_ids = tuple(
-        item.strip() for item in value if isinstance(item, str) and item.strip()
-    )
-    if len(file_ids) != len(value) or len(set(file_ids)) != len(file_ids):
-        raise ValueError("before_file_ids 必须由不重复的非空字符串组成")
-    return file_ids
-
-
-def _optional_file_size(value: object) -> int | None:
-    if value is None:
-        return None
-    parsed = _parse_file_size(value)
-    if parsed is None:
-        raise ValueError("expected_file_size 必须是非负整数")
-    return parsed
-
-
-def _optional_failure_count(value: object) -> int:
-    if value is None:
-        return 0
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValueError("failure_count 必须是非负整数")
-    return value
 
 
 def _required_task_value(value: str | None) -> str:
@@ -774,12 +605,6 @@ async def _maybe_await(value: Any) -> Any:
 def _callable_attr(obj: object | None, name: str) -> Any | None:
     if obj is None:
         return None
-    # MagicMock 会为任意属性动态创建可调用替身；只把测试中明确配置的
-    # action 当作平台能力，避免把不存在的 delete_msg 误判为可用接口。
-    if isinstance(obj, Mock) and name not in vars(obj):
-        mock_children = getattr(obj, "_mock_children", {})
-        if name not in mock_children:
-            return None
     value = getattr(obj, name, None)
     return value if callable(value) else None
 

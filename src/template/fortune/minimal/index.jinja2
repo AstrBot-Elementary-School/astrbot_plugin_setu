@@ -1,0 +1,32 @@
+{% set star_count = stars %}{% set title = text.titles[stars] %}{% set description = text.messages[stars|string] | random %}{% set tip = text.tip[stars|string] | random %}{% set theme_color = 'theme-red' if stars >= 6 else ('theme-gold' if stars >= 4 else ('theme-gray' if stars <= 1 else 'theme-blue')) %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ username | e }} · {{ title | e }}</title>
+
+<style>{{ css | safe }}</style>
+</head>
+<body>
+  <article class="fortune-card {{ theme_color | e }}">
+    {% if image %}
+    <img class="image" src="{{ image | e }}" alt="">
+    {% endif %}
+    <div class="content">
+      {% set max_uname_len = 12 %}
+      <header><span class="username">{% if username|length > max_uname_len %}{{ username[:max_uname_len] | e }}...{% else %}{{ username | e }}{% endif %}</span><time>{{ date_str | e }}</time></header>
+      <section class="result">
+        <h1>{{ title | e }}</h1>
+        <svg class="flower" viewBox="0 0 100 100" role="img" aria-label="运势 {{ star_count }}/7">
+          {% for i in range(7) %}<path class="petal{% if i < star_count %} filled{% endif %}" d="M50 40 C35 27 38 11 50 5 C62 11 65 27 50 40Z" transform="rotate({{ i * 360 / 7 }} 50 50)"/>{% endfor %}
+          <circle cx="50" cy="50" r="3" fill="currentColor"/>
+        </svg>
+      </section>
+      <p class="description">{{ description | e }}</p>
+      {% if tip %}<p class="extra">{{ tip | e }}</p>{% endif %}
+    </div>
+
+  </article>
+</body>
+</html>

@@ -1,136 +1,132 @@
-"""Today's fortune HTML renderer."""
-
-from __future__ import annotations
+"""装配主题资源并调用 AstrBot 渲染。"""
 
 import base64
+import json
+import mimetypes
+import random
+import re
 from pathlib import Path
-from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
-from astrbot.api import logger
-from astrbot.core import html_renderer
-from jinja2 import Template
+import yaml
+from jinja2 import Environment, StrictUndefined
+
+THEMES = ("arona", "endfield", "persona5", "minecraft", "minimal")
+RENDER_WIDTHS = {
+    "arona": 640,
+    "endfield": 780,
+    "persona5": 828,
+    "minecraft": 528,
+    "minimal": 488,
+}
 
 
 class FortuneRenderer:
-    """Render fortune cards to images via AstrBot's HTML renderer."""
+    def __init__(self, card_theme="random"):
+        self.card_theme = card_theme
+        self.root = Path(__file__).resolve().parents[2] / "template" / "fortune"
+        self.aliases = {name: name for name in (*THEMES, "random")}
+        self.aliases["随机"] = "random"
+        for theme in THEMES:
+            path = self.root / theme / "template.yaml"
+            aliases = yaml.safe_load(path.read_text(encoding="utf-8"))["aliases"]
+            if not isinstance(aliases, list):
+                raise TypeError(f"{path} 的 aliases 需要填写字符串数组")
+            for alias in aliases:
+                if not isinstance(alias, str) or not alias.strip():
+                    raise ValueError(f"{path} 中的别名需要填写非空字符串")
+                key = alias.strip().casefold()
+                if key in self.aliases and self.aliases[key] != theme:
+                    raise ValueError(f"主题别名重复：{alias}")
+                self.aliases[key] = theme
+        self.environment = Environment(autoescape=True, undefined=StrictUndefined)
+        self._assets = {}
+        self.versions = {}
 
-    def __init__(self, template_path: Path | None = None) -> None:
-        if template_path is None:
-            template_path = (
-                Path(__file__).resolve().parents[3] / "templates" / "fortune.html"
+    def resolve_theme(self, theme):
+        key = theme.strip().casefold()
+        if key not in self.aliases:
+            raise ValueError(
+                f"未知运势主题：{theme}。可选主题：{'、'.join((*THEMES, 'random'))}"
             )
-        self.template_path = template_path
-        self._fonts_dir = self.template_path.parent / "res" / "fonts"
-        self._embedded_fonts_css: str | None = None
+        return self.aliases[key]
 
-    def _get_embedded_fonts_css(self) -> str:
-        if self._embedded_fonts_css is not None:
-            return self._embedded_fonts_css
+    def choose_theme(self, theme=None, random_themes=THEMES[:-1]):
+        selected = self.resolve_theme(theme or self.card_theme)
+        if selected == "random":
+            selected = random.choice(random_themes)
+        return selected
 
-        fonts_config = [
-            ("NotoSansSC-Regular", "NotoSansSC-Regular.woff2"),
-            ("NotoSansSC-Bold", "NotoSansSC-Bold.woff2"),
-            ("SSFangTangTi", "SSFangTangTi.woff2"),
-        ]
-        css_parts = ["    /* Embedded fonts - auto-generated */"]
+    def assets(self, theme):
+        if theme not in self._assets:
+            root = self.root / theme
+            css = (root / "index.css").read_text()
 
-        for font_name, file_name in fonts_config:
-            font_path = self._fonts_dir / file_name
-            try:
-                if not font_path.exists():
-                    logger.warning("[fortune] Font file not found: %s", font_path)
-                    continue
-                font_data = font_path.read_bytes()
-                b64_data = base64.b64encode(font_data).decode("ascii")
-                css_parts.append(
-                    f"""    @font-face {{
-      font-family: '{font_name}';
-      src: url('data:font/woff2;base64,{b64_data}') format('woff2');
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }}"""
-                )
-            except OSError as exc:
-                logger.error("[fortune] Failed to read font %s: %s", file_name, exc)
+            def embed(match):
+                name = match.group(1).strip(" \"'")
+                if name.startswith(("data:", "https:", "http:", "#")):
+                    return match.group(0)
+                path = (root / name).resolve()
+                data = base64.b64encode(path.read_bytes()).decode()
+                return f"url('data:{mimetypes.guess_type(path)[0] or 'application/octet-stream'};base64,{data}')"
 
-        self._embedded_fonts_css = "\n".join(css_parts)
-        return self._embedded_fonts_css
+            css = re.sub(r"url\(([^)]+)\)", embed, css)
+            text = json.loads((root / "text.json").read_text())
+            js = (root / "index.js").read_text() if (root / "index.js").exists() else ""
+            source = (root / "index.jinja2").read_text()
+            template = self.environment.from_string(source)
+            self.versions[theme] = uuid5(
+                NAMESPACE_URL, source + css + js + json.dumps(text, ensure_ascii=False)
+            ).hex
+            self._assets[theme] = (template, css, js, text)
+        return self._assets[theme]
 
-    @staticmethod
-    def _truncate_username(username: str, max_length: int = 15) -> str:
-        return username[:max_length] + "..." if len(username) > max_length else username
+    def render(self, fortune, image=None, card_theme=None):
+        template, css, js, text = self.assets(self.choose_theme(card_theme))
+        return template.render(
+            username=fortune["username"],
+            date_str=fortune["date_str"],
+            stars=fortune["stars"],
+            image=image,
+            css=css,
+            js=js,
+            text=text,
+        )
 
-    def _get_template(self) -> str:
-        try:
-            return self.template_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            logger.error("[fortune] Failed to read template: %s", exc)
-            return """<!DOCTYPE html>
-<html><body style="width:480px;padding:20px;">
-<div style="background:#f0f0f0;border-radius:10px;padding:20px;">
-<h2>{{ username | e }} 的今日运势 ({{ date_str | e }})</h2>
-<p>运势: {{ title | e }}</p>
-<p>星级: {{ stars_display | safe }}</p>
-<p>{{ description | e }}</p>
-</div></body></html>"""
+    def format_text(self, record, theme):
+        text = self.assets(theme)[3]
+        key = str(record.star_count)
+        message = random.choice(text["messages"][key])
+        tip = random.choice(text["tip"][key])
+        return (
+            f"{record.date_str} · {text['titles'][record.star_count]}\n{message}\n{tip}"
+        )
 
-    @staticmethod
-    def _format_stars(count: int, max_count: int = 7) -> str:
-        stars_html = []
-        for _ in range(count):
-            stars_html.append('<span class="star">★</span>')
-        for _ in range(max_count - count):
-            stars_html.append('<span class="star empty">★</span>')
-        return "".join(stars_html)
+    async def render_to_image(self, fortune, image=None, card_theme=None):
+        from astrbot.core import html_renderer
 
-    def render(self, fortune: dict[str, Any], image_base64: str | None = None) -> str:
-        template = self._get_template()
-        data = self.build_template_data(fortune, image_base64=image_base64)
-        return Template(template, autoescape=True).render(**data)
-
-    def build_template_data(
-        self, fortune: dict[str, Any], image_base64: str | None = None
-    ) -> dict[str, Any]:
-        """Build Jinja template data for fortune cards."""
-        username = self._truncate_username(fortune.get("username", "用户"))
-        return {
-            "fonts_css": self._get_embedded_fonts_css(),
-            "username": username,
-            "date_str": fortune.get("date_str", ""),
-            "title": fortune.get("title", "未知"),
-            "stars_display": self._format_stars(
-                fortune.get("star_count", 3), fortune.get("max_stars", 7)
-            ),
-            "description": fortune.get("description", ""),
-            "extra_message": fortune.get("extra_message", ""),
-            "theme_color": fortune.get("theme_color", "theme-gray"),
-            "image_base64": image_base64 or "",
-        }
-
-    async def render_to_image(
-        self, fortune: dict[str, Any], image_base64: str | None = None
-    ) -> bytes | None:
-        try:
-            template = self._get_template()
-            tmpl_data = self.build_template_data(fortune, image_base64=image_base64)
-            output = await html_renderer.render_custom_template(
-                tmpl_str=template,
-                tmpl_data=tmpl_data,
-                return_url=False,
-                options={"full_page": True, "type": "png", "scale": "device"},
-            )
-            if output is None:
-                return None
-            if isinstance(output, bytes):
-                return output
-            if isinstance(output, str):
-                path = Path(output)
-                if path.exists():
-                    if path.stat().st_size < 100:
-                        return None
-                    return path.read_bytes()
-            return None
-        except Exception as exc:  # noqa: BLE001 - Keep text fallback for t2i failures.
-            logger.exception("[fortune] Failed to render image: %s", exc)
-            return None
+        theme = self.choose_theme(card_theme)
+        _, css, js, text = self.assets(theme)
+        # 让 AstrBot 将脚本注入 <head>，保留 DOCTYPE 的标准渲染模式。
+        output = await html_renderer.render_custom_template(
+            tmpl_str=(self.root / theme / "index.jinja2").read_text(),
+            tmpl_data={
+                "username": fortune["username"],
+                "date_str": fortune["date_str"],
+                "stars": fortune["stars"],
+                "image": image,
+                "css": css,
+                "js": js,
+                "text": text,
+            },
+            return_url=False,
+            options={
+                "full_page": True,
+                "type": "png",
+                "scale": "css",
+                "omit_background": True,
+                "viewport_width": RENDER_WIDTHS[theme],
+                "viewport_height": 1,
+            },
+        )
+        return output if isinstance(output, bytes) else Path(output).read_bytes()

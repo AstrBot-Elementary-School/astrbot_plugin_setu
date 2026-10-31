@@ -6,7 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from ...domain.setu import SetuRequest
 from ...shared import get_logger
-from ..setu.dto import ImagePayload
+from ..setu.dto import ImageMetadata, ImagePayload
 
 logger = get_logger()
 
@@ -14,13 +14,13 @@ logger = get_logger()
 class SetuImageProvider:
     """色图图片提供商基类（策略模式）。"""
 
-    async def fetch_image_urls(
+    async def fetch_images(
         self,
         num: int,
         tags: list[str],
         r18: bool,
         exclude_ai: bool = True,
-    ) -> list[str]:
+    ) -> list[ImageMetadata]:
         """从 API 获取图片 URL 列表。
 
         参数:
@@ -34,7 +34,9 @@ class SetuImageProvider:
         """
         raise NotImplementedError
 
-    async def fetch_and_download(self, request: SetuRequest) -> ImagePayload:
+    async def fetch_and_download(
+        self, request: SetuRequest, *, on_images
+    ) -> ImagePayload:
         """Fetch and materialize image data for delivery."""
         raise NotImplementedError
 
@@ -65,58 +67,7 @@ class SetuImageProvider:
         if original_host not in proxy_targets:
             return url
 
-        if ":" in proxy_host:
-            netloc = proxy_host
-        else:
-            netloc = proxy_host
+        netloc = proxy_host
         return urlunsplit(
             (parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment)
         )
-
-    def _apply_proxy_to_urls(
-        self, urls: list[str], proxy: str | None, provider_name: str
-    ) -> list[str]:
-        if not proxy:
-            return urls
-
-        rewritten = [self._apply_proxy_to_url(url, proxy) for url in urls]
-        changed = sum(
-            1 for old, new in zip(urls, rewritten, strict=False) if old != new
-        )
-        if changed:
-            logger.info(
-                "[provider] proxy rewritten: provider=%s, proxy=%s, changed=%d",
-                provider_name,
-                proxy,
-                changed,
-            )
-        else:
-            logger.debug(
-                "[provider] proxy rewrite skipped: provider=%s, proxy=%s, urls=%d",
-                provider_name,
-                proxy,
-                len(urls),
-            )
-        return rewritten
-
-    @staticmethod
-    def _normalize_bool(value, default: bool = True) -> bool:
-        """Normalize possibly-dirty boolean input from config/runtime sources."""
-        if value is None:
-            return default
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)):
-            return bool(value)
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered in {"true", "1", "yes", "on"}:
-                return True
-            if lowered in {"false", "0", "no", "off"}:
-                return False
-            if lowered in {"none", "null", ""}:
-                return default
-        return default
-
-
-ImageProvider = SetuImageProvider

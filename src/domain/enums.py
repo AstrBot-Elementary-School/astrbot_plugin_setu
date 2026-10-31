@@ -21,14 +21,6 @@ class SendMode(str, Enum):
     AUTO = "auto"
 
 
-class HtmlCardStrategy(str, Enum):
-    """HTML 卡片策略。"""
-
-    NEVER = "never"
-    FALLBACK = "fallback"
-    ALWAYS = "always"
-
-
 class ApiType(str, Enum):
     """API 提供商类型。"""
 

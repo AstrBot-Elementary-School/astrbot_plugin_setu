@@ -43,7 +43,7 @@ jobs:
                 *.md) continue ;;
               esac
               case "$path" in
-                main.py|__init__.py|src/*|templates/*|scripts/ci/*|_conf_schema.json|requirements*.txt|metadata.yaml|metadata.yml|pyproject.toml|uv.lock|.github/workflows/plugin-validation.yml)
+                main.py|__init__.py|src/*|tests/integration/*|scripts/ci/*|_conf_schema.json|requirements*.txt|metadata.yaml|metadata.yml|pyproject.toml|uv.lock|.github/workflows/plugin-validation.yml)
                   required=true ;;
               esac
             done < "$RUNNER_TEMP/changed-files"

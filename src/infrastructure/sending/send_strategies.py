@@ -3,7 +3,6 @@
 Defines the strategy interface and implementations for different send modes:
 - Direct send: send images directly in message chain
 - Forward send: use merge forward (OneBot v11 feature)
-- HTML card fallback: wrap images in HTML cards to bypass censorship
 """
 
 from __future__ import annotations
@@ -12,14 +11,12 @@ import inspect
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
 
 import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent
 
 from ...shared import get_logger
 from .dto import SendAttemptResult
-from .image_sources import read_image_bytes
 from .platform_capabilities import is_onebot_like_platform
 
 logger = get_logger()
@@ -116,8 +113,6 @@ async def _call_onebot_action(
 
 def _callable_attr(obj: Any, name: str) -> Any | None:
     if obj is None:
-        return None
-    if isinstance(obj, Mock) and name not in vars(obj):
         return None
     attr = getattr(obj, name, None)
     return attr if callable(attr) else None
@@ -308,8 +303,6 @@ class DirectSendStrategy(SendStrategy):
         platform_name = getattr(getattr(event, "platform", None), "name", "") or ""
         if not is_onebot_like_platform(platform_name):
             return False
-        if auto_revoke and len(chain) == 1 and isinstance(chain[0], Comp.Nodes):
-            return True
         if auto_revoke and any(
             self._is_revoke_capable_component(comp) for comp in chain
         ):
@@ -345,22 +338,6 @@ class DirectSendStrategy(SendStrategy):
         target_type, target_id = target
         # 需要自动撤回时在发送阶段直接取得可恢复撤回所需的 message_id；
         # 普通文件消息与图片消息都走同一条 OneBot action 链路。
-        if len(chain) == 1 and isinstance(chain[0], Comp.Nodes):
-            # 兼容其他调用方仍传入 Nodes；本子发送器本身不再生成 Nodes。
-            payload = _normalize_onebot_file_uris(await chain[0].to_dict())
-            messages = payload.get("messages", [])
-            if target_type == "group":
-                return await _call_onebot_action(
-                    event,
-                    "send_group_forward_msg",
-                    {"group_id": target_id, "messages": messages},
-                )
-            return await _call_onebot_action(
-                event,
-                "send_private_forward_msg",
-                {"user_id": target_id, "messages": messages},
-            )
-
         message: list[dict[str, Any]] = []
         for comp in chain:
             message.append(await _component_to_onebot_message(comp))
@@ -446,21 +423,6 @@ class ForwardSendStrategy(SendStrategy):
 
         return await self._send_nodes_direct_with_status(event, nodes, auto_revoke)
 
-    async def _send_nodes_direct(
-        self, event: AstrMessageEvent, nodes: list[Comp.Node]
-    ) -> bool:
-        """Send forward nodes directly.
-
-        Args:
-            event: Message event
-            nodes: Forward nodes
-
-        Returns:
-            True if send succeeded
-        """
-        result = await self._send_nodes_direct_with_status(event, nodes)
-        return result.accepted
-
     async def _send_nodes_direct_with_status(
         self,
         event: AstrMessageEvent,
@@ -539,97 +501,6 @@ class ForwardSendStrategy(SendStrategy):
             event,
             "send_private_forward_msg",
             {"user_id": target_id, "messages": messages},
-        )
-
-
-class HtmlCardFallbackStrategy(SendStrategy):
-    """HTML card fallback strategy — wraps images in HTML cards."""
-
-    def __init__(
-        self,
-        plugin_context: Any,
-        html_renderer: Any,
-        style_options: dict[str, int] | None = None,
-    ) -> None:
-        """Initialize HTML card fallback strategy.
-
-        Args:
-            plugin_context: Plugin context
-            html_renderer: HtmlCardRenderer instance
-            style_options: Style options (card_padding, card_gap)
-        """
-        self._context = plugin_context
-        self._renderer = html_renderer
-        self._style_options = style_options or {}
-
-    async def send(
-        self,
-        event: AstrMessageEvent,
-        chain: list[Any],
-        auto_revoke: bool = False,
-    ) -> bool:
-        """Send images wrapped in HTML cards.
-
-        Args:
-            event: Message event
-            chain: Message chain (list of image components)
-            auto_revoke: Not supported (ignored)
-
-        Returns:
-            True if send succeeded
-        """
-        result = await self.send_with_status(event, chain, auto_revoke)
-        return result.accepted
-
-    async def send_with_status(
-        self,
-        event: AstrMessageEvent,
-        chain: list[Any],
-        auto_revoke: bool = False,
-    ) -> SendAttemptResult:
-        """Send HTML fallback and preserve pending delivery status."""
-        if not self._renderer:
-            logger.warning("[html_fallback] renderer unavailable")
-            return SendAttemptResult.failed("html renderer unavailable")
-
-        images: list[bytes] = []
-        for comp in chain:
-            if not isinstance(comp, Comp.Image):
-                continue
-            data = await read_image_bytes(comp)
-            if data is not None:
-                images.append(data)
-
-        if not images:
-            logger.warning("[html_fallback] no images available after materialization")
-            return SendAttemptResult.failed("no images available")
-
-        rendered_images = []
-        for i, img_data in enumerate(images):
-            logger.debug("[html_fallback] Rendering image %d/%d", i + 1, len(images))
-            try:
-                rendered = await self._renderer.render_single_image(
-                    context=self._context,
-                    image=img_data,
-                    style_options=self._style_options,
-                )
-            except Exception as exc:
-                logger.exception("[html_fallback] rendering failed")
-                return SendAttemptResult.failed(str(exc))
-            if rendered:
-                rendered_images.append(rendered)
-            else:
-                logger.warning("[html_fallback] failed to render image index=%d", i + 1)
-
-        if not rendered_images:
-            logger.warning("[html_fallback] renderer produced no images")
-            return SendAttemptResult.failed("renderer produced no images")
-
-        # Send rendered images
-        chain = [Comp.Image.fromBytes(img) for img in rendered_images]
-        logger.info("[html_fallback] rendered images: count=%d", len(rendered_images))
-        return await DirectSendStrategy(self._context).send_with_status(
-            event, chain, auto_revoke
         )
 
 

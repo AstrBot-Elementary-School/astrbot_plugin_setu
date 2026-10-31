@@ -1,4 +1,4 @@
-"""Shared SID access decision for commands, tools and pregeneration."""
+"""Shared SID access decision for commands and tools."""
 
 from ...application.ports import AccessControlRepository
 

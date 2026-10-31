@@ -7,6 +7,14 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class ImageMetadata:
+    image_url: str
+    source_url: str
+    tags: tuple[str, ...] = ()
+    download_url: str | None = None
+
+
+@dataclass(frozen=True)
 class ImagePayload:
     """Fetched image data ready for adapter-level delivery."""
 
@@ -16,6 +24,7 @@ class ImagePayload:
     tags: tuple[str, ...]
     file_paths: tuple[Path, ...] = ()
     items: tuple[Path | bytes, ...] = ()
+    images: tuple[ImageMetadata, ...] = ()
 
     @property
     def is_empty(self) -> bool:

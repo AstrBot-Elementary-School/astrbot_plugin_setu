@@ -21,31 +21,6 @@ class SetuSettings:
     max_replenish_rounds: int
 
 
-@dataclass(frozen=True)
-class DeliverySettings:
-    """Settings needed by adapter-level delivery."""
-
-    send_mode: str
-    html_card_strategy: str
-    auto_revoke_scope: str
-    auto_revoke_delay: int
-    r18_docx_mode: bool
-    html_card_padding: int
-    html_card_gap: int
-    napcat_stream_mode: str
-
-
-@dataclass(frozen=True)
-class FortuneSettings:
-    """Settings needed by fortune use cases."""
-
-    enabled: bool
-    content_mode: str
-    tags: str
-    allow_user_refresh: bool
-    auto_refresh: bool
-
-
 _config: SetuPluginConfig | None = None
 
 
@@ -75,48 +50,4 @@ def get_setu_settings() -> SetuSettings:
         content_mode=_config.content_mode,
         exclude_ai=_config.exclude_ai,
         max_replenish_rounds=_config.max_replenish_rounds,
-    )
-
-
-def get_delivery_settings() -> DeliverySettings:
-    """Return delivery settings from the current config snapshot."""
-    if _config is None:
-        return DeliverySettings(
-            send_mode="image",
-            html_card_strategy="never",
-            auto_revoke_scope="none",
-            auto_revoke_delay=30,
-            r18_docx_mode=False,
-            html_card_padding=6,
-            html_card_gap=6,
-            napcat_stream_mode="fallback",
-        )
-    return DeliverySettings(
-        send_mode=_config.send_mode,
-        html_card_strategy=_config.html_card_strategy,
-        auto_revoke_scope=_config.auto_revoke_scope,
-        auto_revoke_delay=_config.auto_revoke_delay,
-        r18_docx_mode=_config.r18_docx_mode,
-        html_card_padding=_config.html_card_padding,
-        html_card_gap=_config.html_card_gap,
-        napcat_stream_mode=_config.napcat_stream_mode,
-    )
-
-
-def get_fortune_settings() -> FortuneSettings:
-    """Return fortune settings from the current config snapshot."""
-    if _config is None:
-        return FortuneSettings(
-            enabled=True,
-            content_mode="sfw",
-            tags="",
-            allow_user_refresh=False,
-            auto_refresh=True,
-        )
-    return FortuneSettings(
-        enabled=_config.fortune.enabled,
-        content_mode=_config.fortune.content_mode.value,
-        tags=_config.fortune.tags,
-        allow_user_refresh=_config.fortune.allow_user_refresh,
-        auto_refresh=_config.fortune.auto_refresh,
     )

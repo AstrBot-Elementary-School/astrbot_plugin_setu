@@ -7,7 +7,6 @@ from .config import (
     get_config,
     get_plugin_context,
     init_config,
-    set_config,
     set_plugin_context,
 )
 
@@ -16,6 +15,5 @@ __all__ = [
     "get_config",
     "get_plugin_context",
     "init_config",
-    "set_config",
     "set_plugin_context",
 ]
