@@ -389,40 +389,40 @@
       font-weight: 900;
       letter-spacing: 2px;
       line-height: 1;
-      text-shadow: 0 1px 2px rgba(21, 44, 66, 0.16);
+      text-shadow: 0 1.5px 3px rgba(21, 44, 66, 0.24);
     }
 
-    /* Progressive BA Azure-Dominant Color Scale (0★ Muted Slate-Blue -> Signature Azure -> Holo Prismatic Azure) */
+    /* Progressive BA Azure-to-Pastel Scale (0★ Muted Blue -> Signature Azure -> Arona Pastel Pink-Blue) */
     .ba-fortune-capsule.stars-0 {
-      --rank-badge-bg: linear-gradient(135deg, #526D88 0%, #7594B3 100%);
+      --rank-badge-bg: linear-gradient(135deg, #5B7691 0%, #7B99B8 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-1 {
-      --rank-badge-bg: linear-gradient(135deg, #3274BA 0%, #5CA0E6 100%);
+      --rank-badge-bg: linear-gradient(135deg, #3478BF 0%, #5B9FE3 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-2 {
-      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #47A8FF 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #42A5FF 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-3 {
-      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #19B5FE 55%, #33D9FF 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-4 {
-      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 65%, #7C83FD 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #26C6FF 58%, #7E9BFF 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-5 {
-      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 52%, #8B78FF 78%, #FB7299 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #33C9FF 48%, #8E94FF 78%, #C08BFF 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-6 {
-      --rank-badge-bg: linear-gradient(135deg, #0A74DA 0%, #1289F9 36%, #00D8FF 64%, #C06CFF 84%, #FF5C93 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #38CEFF 42%, #9A92FF 72%, #F082BC 100%);
       --rank-pill-text: #FFFFFF;
     }
     .ba-fortune-capsule.stars-7 {
-      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #00D8FF 40%, #5EEAD4 60%, #FBBF24 79%, #FF4D80 100%);
+      --rank-badge-bg: linear-gradient(135deg, #1289F9 0%, #36D1FF 36%, #949BFF 66%, #F680B5 86%, #FF96C5 100%);
       --rank-pill-text: #FFFFFF;
     }
 
