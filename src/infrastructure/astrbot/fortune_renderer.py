@@ -22,7 +22,7 @@ RENDER_WIDTHS = {
 
 
 class FortuneRenderer:
-    def __init__(self, card_theme="endfield"):
+    def __init__(self, card_theme="random"):
         self.card_theme = card_theme
         self.root = Path(__file__).resolve().parents[2] / "template" / "fortune"
         self.aliases = {name: name for name in (*THEMES, "random")}

@@ -103,7 +103,7 @@
 
 使用 `/今日运势` 查看运势；`/刷新运势` 刷新本人，管理员可用 `/刷新运势@用户` 指定目标；`/刷新全局运势` 由超级管理员清理当天全部运势。开启 `fortune.allow_user_refresh` 后普通用户也可刷新本人。
 
-通过 `/运势偏好 主题 arona`、`/运势偏好 标签 猫耳 白发` 设置个人偏好。同一用户在各会话共享偏好，每个会话的每日星级独立保存。主题可选 `endfield`、`arona`、`persona5`、`minecraft`、`minimal` 和 `random`。
+通过 `/运势偏好 主题 arona`、`/运势偏好 标签 猫耳 白发` 设置个人偏好。同一用户在各会话共享偏好，每个会话的每日星级独立保存。主题可选 `endfield`、`arona`、`persona5`、`minecraft`、`minimal` 和 `random`；默认随机，配置中的“随机主题范围”默认勾选除简约外的四个主题。
 
 `setu_general.commands_enabled`、`natural_language_enabled`、`llm_tools_enabled` 分别控制普通命令、短语入口和工具注册，保存后重载生效。
 

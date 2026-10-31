@@ -66,7 +66,7 @@ def test_configuration_drop_invalid_preserve_valid(load):
     assert "dead" not in config
     assert config["setu_general"]["commands_enabled"] is False
     assert config["setu_general"]["max_count"] == 10
-    assert config["fortune"]["card_theme"] == "endfield"
+    assert config["fortune"]["card_theme"] == "random"
     assert config["fortune"]["allow_user_refresh"] is True
     assert config["cache"] == {"setu": False, "fortune": False, "doujinshi": False}
     assert config["safety"] == []

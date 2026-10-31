@@ -19,7 +19,7 @@ description: 使用 astrbot_plugin_setu 获取色图、随机本子和今日运�
 - `/运势偏好 重置主题`
 - `/运势偏好 重置标签`
 
-主题可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`，默认 `endfield`。主题按“个人偏好 → 插件默认值”生效；搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效。偏好以 `user_id` 为键跨会话共享，运势星级按会话、用户、日期保存，切换主题保持当天星级。
+主题可选 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`、`random`，默认 `random`（随机）。随机主题从 `fortune.random_themes` 勾选的范围中抽取，默认排除 `minimal`。主题按“个人偏好 → 插件默认值”生效；搜索标签按“个人偏好 → 当前 SID 会话配置 → 插件默认值”生效。偏好以 `user_id` 为键跨会话共享，运势星级按会话、用户、日期保存，切换主题保持当天星级。
 
 偏好命令接受主题 `template.yaml` 中的 `aliases`，例如 `/运势偏好 主题 蔚蓝档案` 或 `/运势偏好 主题 Blue Archive`；英文忽略大小写。`/运势偏好 主题 随机` 保存为 `random`，配置面板也提供“随机”默认主题。
 

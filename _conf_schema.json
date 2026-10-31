@@ -324,8 +324,8 @@
       "card_theme": {
         "type": "string",
         "description": "卡片视觉风格",
-        "hint": "默认使用终末地；选择随机时，每次查看从“随机主题范围”中抽取，保留当天星级。个人主题偏好优先生效。",
-        "default": "endfield",
+        "hint": "默认随机；每次查看从“随机主题范围”中抽取，保留当天星级。个人主题偏好优先生效。",
+        "default": "random",
         "options": [
           "endfield",
           "arona",

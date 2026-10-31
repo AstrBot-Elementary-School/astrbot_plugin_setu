@@ -260,7 +260,7 @@ class FortuneConfig(BaseModel):
 
     show_advanced: bool = False
     enabled: bool = True
-    card_theme: FortuneCardThemeStr = FortuneCardThemeStr.ENDFIELD
+    card_theme: FortuneCardThemeStr = FortuneCardThemeStr.RANDOM
     random_themes: list[
         Literal["arona", "endfield", "persona5", "minecraft", "minimal"]
     ] = Field(

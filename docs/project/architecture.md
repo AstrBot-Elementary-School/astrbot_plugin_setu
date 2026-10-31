@@ -20,7 +20,7 @@ provider 返回逐图 `ImageMetadata(image_url, source_url, tags)`，下载结�
 
 每日运势由 `FortuneService` 和 `SQLiteFortuneRepo` 保存星级，唯一键为 `(session_id, user_id, date)`，背景通过 `setu_history_id` 关联。偏好以框架返回的 `user_id` 为主键，跨群聊与私聊共享。
 
-模板输入为昵称、日期、星级、图片。主题的 `text.json` 保存运势标题，以及按 0～7 星分组的 `messages` 和 `tip` 候选数组，模板分别随机抽取正文和寄语；固定标识、装饰文字和图片说明直接写在 `index.jinja2`，`index.css` 管样式。渲染器只装配所选主题及其字体。主题包括 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`，默认 `endfield`。
+模板输入为昵称、日期、星级、图片。主题的 `text.json` 保存运势标题，以及按 0～7 星分组的 `messages` 和 `tip` 候选数组，模板分别随机抽取正文和寄语；固定标识、装饰文字和图片说明直接写在 `index.jinja2`，`index.css` 管样式。渲染器只装配所选主题及其字体。主题包括 `arona`、`endfield`、`persona5`、`minecraft`、`minimal`，默认随机，从 `fortune.random_themes` 勾选的范围中抽取，初始范围排除 `minimal`。
 
 各主题的 `template.yaml` 保存版本、名称、别名和作者，初始版本为 `"0.1"`。当前只使用 `aliases` 解析主题选择，偏好入库前统一为主题目录名，随机选择保存为 `random`。
 

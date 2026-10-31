@@ -182,7 +182,10 @@ async def test_fortune_cache_theme_and_tags_keep_daily_stars(tmp_path, load):
     db = await dbmod.init_database(tmp_path)
     cfgmod = load("src.infrastructure.astrbot.config")
     cfgmod.init_config(
-        {"cache": {"fortune": True}, "fortune": {"allow_user_refresh": True}}
+        {
+            "cache": {"fortune": True},
+            "fortune": {"allow_user_refresh": True, "card_theme": "endfield"},
+        }
     )
     cfgmod.set_plugin_context(
         SimpleNamespace(send_message=AsyncMock(return_value={"message_id": "sent"}))
