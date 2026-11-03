@@ -8,7 +8,10 @@ from PIL import Image
 
 
 def event(sid="p:GroupMessage:g", admin=False, role="member", user="u"):
+    extras = {}
     return SimpleNamespace(
+        get_extra=extras.get,
+        set_extra=extras.__setitem__,
         unified_msg_origin=sid,
         get_platform_id=lambda: "p",
         get_sender_id=lambda: user,
@@ -135,7 +138,8 @@ async def test_docx_and_images_cleanup_after_send(tmp_path, load):
     cache = load("src.shared.cache").init_cache(tmp_path / "cache")
     cfg = load("src.shared.config.models").SetuPluginConfig()
     context = SimpleNamespace(
-        send_message=AsyncMock(return_value={"message_id": "sent"})
+        get_config=lambda **kw: {"platform_settings": {"reply_with_mention": False}},
+        send_message=AsyncMock(return_value={"message_id": "sent"}),
     )
     load("src.infrastructure.astrbot.config").set_plugin_context(context)
     data = BytesIO()
@@ -188,7 +192,10 @@ async def test_fortune_cache_theme_and_tags_keep_daily_stars(tmp_path, load):
         }
     )
     cfgmod.set_plugin_context(
-        SimpleNamespace(send_message=AsyncMock(return_value={"message_id": "sent"}))
+        SimpleNamespace(
+            get_config=lambda **kw: {"platform_settings": {"reply_with_mention": True}},
+            send_message=AsyncMock(return_value={"message_id": "sent"}),
+        )
     )
     persistence = load("src.infrastructure.persistence")
     await persistence.init_access_control_repo(cfgmod.get_config().safety)
@@ -235,6 +242,10 @@ async def test_fortune_cache_theme_and_tags_keep_daily_stars(tmp_path, load):
             patch.object(httpx, "AsyncClient", client),
         ):
             assert await handler._get(ev) == "ok"
+            import astrbot.api.message_components as Comp
+
+            sent = cfgmod.get_plugin_context().send_message.await_args.args[1]
+            assert isinstance(sent[0], Comp.At) and str(sent[0].qq) == "u"
             first = await (
                 await db.connection.execute("SELECT * FROM daily_fortune")
             ).fetchone()
@@ -276,7 +287,10 @@ async def test_pending_docx_and_retained_forward_napcat_routes(tmp_path, load):
 
     cache = load("src.shared.cache").init_cache(tmp_path / "cache")
     cfg = load("src.shared.config.models").SetuPluginConfig()
-    context = SimpleNamespace(send_message=AsyncMock(return_value=None))
+    context = SimpleNamespace(
+        get_config=lambda **kw: {"platform_settings": {"reply_with_mention": False}},
+        send_message=AsyncMock(return_value=None),
+    )
     load("src.infrastructure.astrbot.config").set_plugin_context(context)
     ev = event()
     ev.platform = SimpleNamespace(name="napcat")
@@ -324,3 +338,155 @@ async def test_pending_docx_and_retained_forward_napcat_routes(tmp_path, load):
     chain = context.send_message.await_args.args[1]
     assert isinstance(chain[0], Comp.Nodes)
     assert not cache.active
+
+
+@pytest.mark.asyncio
+async def test_reply_mentions_session_overrides_raw_receipts_and_special_messages(load):
+    """真实消息组件贯穿发送边界，保证 @ 设置和媒体回执各自保留。"""
+    import astrbot.api.message_components as Comp
+    from astrbot.core.message.message_event_result import MessageEventResult
+
+    strategies = load("src.infrastructure.sending.send_strategies")
+    settings = {"p:GroupMessage:123": True, "p:GroupMessage:456": False}
+    context = SimpleNamespace(
+        get_config=lambda *, umo: {
+            "platform_settings": {"reply_with_mention": settings.get(umo, True)}
+        },
+        send_message=AsyncMock(return_value={"message_id": "media"}),
+    )
+
+    def reply_event(sid="p:GroupMessage:123"):
+        ev = event(sid, user="321")
+        ev.platform = SimpleNamespace(name="aiocqhttp")
+        ev.chain_result = lambda chain: MessageEventResult(chain=chain)
+        ev.bot = SimpleNamespace(
+            call_action=AsyncMock(return_value={"message_id": "raw"})
+        )
+        return ev
+
+    direct = strategies.DirectSendStrategy(context)
+    image = Comp.Image.fromBytes(b"test image")
+    for sid, expected in (
+        ("p:GroupMessage:123", True),
+        ("p:GroupMessage:456", False),
+        ("p:FriendMessage:321", False),
+    ):
+        ev = reply_event(sid)
+        original = [image]
+        result = await direct.send_with_status(ev, original)
+        assert result.message_ids == ("media",)
+        chain = context.send_message.await_args.args[1].chain
+        assert any(isinstance(c, Comp.At) for c in chain) == expected
+        assert original == [image]
+
+    ev = reply_event()
+    await direct.send_with_status(ev, [Comp.At(qq="321"), image], auto_revoke=True)
+    params = ev.bot.call_action.await_args.kwargs
+    assert [c["type"] for c in params["message"]] == ["at", "image"]
+    assert params["group_id"] == 123
+    assert params["message"][0]["data"]["qq"] == "321"
+
+    # 普通发送失败后更换传输仍带 @，确认超时后则复用已有提醒。
+    ev = reply_event()
+    context.send_message.side_effect = RuntimeError("rejected")
+    assert not (await direct.send_with_status(ev, [image])).accepted
+    context.send_message.side_effect = None
+    result = await direct.send_with_status(ev, [image], auto_revoke=True)
+    assert result.message_ids == ("raw",)
+    assert ev.bot.call_action.await_args.kwargs["message"][0]["type"] == "at"
+    ev = reply_event()
+    context.send_message.side_effect = TimeoutError("ack lost")
+    assert (await direct.send_with_status(ev, [image])).pending
+    context.send_message.side_effect = None
+    await direct.send_with_status(ev, [image])
+    assert not any(
+        isinstance(c, Comp.At) for c in context.send_message.await_args.args[1].chain
+    )
+
+    # 提醒失败时保留错误；确认超时时继续发送媒体，避免重复提醒。
+    ev = reply_event()
+    file_chain = [Comp.File(file="/tmp/book.pdf", name="book.pdf")]
+    context.send_message.side_effect = RuntimeError("notice rejected")
+    result = await direct.send_with_status(ev, file_chain, auto_revoke=True)
+    assert not result.accepted and "notice rejected" in result.reason
+    ev.bot.call_action.assert_not_awaited()
+    context.send_message.side_effect = TimeoutError("notice ack lost")
+    result = await direct.send_with_status(ev, file_chain, auto_revoke=True)
+    assert result.message_ids == ("raw",)
+    assert len(ev.bot.call_action.await_args.kwargs["message"]) == 1
+    context.send_message.side_effect = None
+
+    for raw in (False, True):
+        for kind in ("file", "forward"):
+            ev = reply_event()
+            context.send_message.reset_mock()
+            if kind == "file":
+
+                async def send():
+                    return await direct.send_with_status(
+                        ev, [Comp.File(file="/tmp/book.pdf", name="book.pdf")], raw
+                    )
+            else:
+                forward = strategies.ForwardSendStrategy(context)
+
+                async def send():
+                    return await forward.send_with_status(ev, [image], raw)
+
+            result = await send()
+            assert result.message_ids == (("raw",) if raw else ("media",))
+            notice = context.send_message.await_args_list[0]
+            assert notice.args[0] == ev.unified_msg_origin
+            ats = [c for c in notice.args[1].chain if isinstance(c, Comp.At)]
+            assert len(ats) == 1 and str(ats[0].qq) == "321"
+            if not raw:
+                media_chain = context.send_message.await_args.args[1].chain
+                assert len(media_chain) == 1
+                assert isinstance(
+                    media_chain[0], Comp.File if kind == "file" else Comp.Nodes
+                )
+            count = context.send_message.await_count
+            await send()
+            assert context.send_message.await_count == count + (0 if raw else 1)
+
+
+@pytest.mark.asyncio
+async def test_llm_feedback_uses_session_reply_mentions(load, monkeypatch):
+    import astrbot.api.message_components as Comp
+    from astrbot.core.message.message_event_result import MessageEventResult
+
+    commands = load("src.infrastructure.astrbot.commands.setu")
+    sending = load("src.infrastructure.sending")
+    Payload = load("src.application.setu.dto").ImagePayload
+    context = SimpleNamespace(
+        get_config=lambda **kw: {"platform_settings": {"reply_with_mention": True}},
+        send_message=AsyncMock(return_value={"message_id": "feedback"}),
+    )
+    config = load("src.shared.config.models").SetuPluginConfig()
+    config.setu_general.llm_tools_enabled = True
+    monkeypatch.setattr(commands, "get_config", lambda: config)
+    monkeypatch.setattr(
+        commands,
+        "get_provider",
+        lambda: SimpleNamespace(
+            fetch_and_download=AsyncMock(
+                return_value=Payload(urls=(), raw_bytes=(), r18=False, tags=())
+            )
+        ),
+    )
+    ev = event(user="321")
+    ev.platform = SimpleNamespace(name="test")
+    ev.chain_result = lambda chain: MessageEventResult(chain=chain)
+
+    async def failed_images(self, payload, event):
+        yield MessageEventResult(chain=[Comp.Plain("发送失败详情")])
+
+    monkeypatch.setattr(sending.ImageSender, "send_images", failed_images)
+    handler = commands.SetuCommandHandler(plugin_context=context)
+    monkeypatch.setattr(handler, "_check_access", AsyncMock(return_value=(True, "")))
+    monkeypatch.setattr(
+        handler, "_get_effective_content_mode", AsyncMock(return_value="sfw")
+    )
+    await handler._llm_get_setu_handler(ev)
+    chain = context.send_message.await_args.args[1].chain
+    assert str(chain[0].qq) == "321"
+    assert chain[-1].text == "发送失败详情"

@@ -360,9 +360,11 @@ class SetuCommandHandler:
                 if isinstance(result, dict):
                     accepted = accepted or bool(result.get("send_success"))
                 else:
-                    await (self._plugin_context or get_plugin_context()).send_message(
-                        event.unified_msg_origin, result
-                    )
+                    send_result = await DirectSendStrategy(
+                        self._plugin_context or get_plugin_context()
+                    ).send_with_status(event, result.chain)
+                    if not send_result.accepted:
+                        raise RuntimeError(send_result.reason)
             if not accepted:
                 return self._message("send_failed")
             return "ok"

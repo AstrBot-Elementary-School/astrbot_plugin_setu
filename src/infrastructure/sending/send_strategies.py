@@ -18,6 +18,7 @@ from astrbot.api.event import AstrMessageEvent
 from ...shared import get_logger
 from .dto import SendAttemptResult
 from .platform_capabilities import is_onebot_like_platform
+from .reply_mention import mark_reply_mention, needs_reply_mention, with_reply_mention
 
 logger = get_logger()
 
@@ -236,7 +237,15 @@ class DirectSendStrategy(SendStrategy):
     ) -> SendAttemptResult:
         """Send images directly and keep timeout separate from confirmed failure."""
         try:
+            if any(
+                isinstance(comp, (Comp.File, Comp.Node, Comp.Nodes, Comp.Forward))
+                for comp in chain
+            ):
+                await _send_reply_notice(self._context, event)
+            else:
+                chain = with_reply_mention(self._context, event, chain)
             send_result = await self._send_message(event, chain, auto_revoke)
+            mark_reply_mention(event, chain)
 
             platform_name = getattr(event.platform, "name", "unknown")
 
@@ -267,6 +276,7 @@ class DirectSendStrategy(SendStrategy):
             )
             return SendAttemptResult.success(message_ids)
         except TimeoutError as exc:
+            mark_reply_mention(event, chain)
             # 发送接口超时后无法判断平台侧是否已经接收消息，重发 fallback 可能造成重复图片。
             logger.warning(
                 "[send] direct send confirmation timed out, treating as pending delivery: platform=%s, chain=%d, error=%s",
@@ -431,6 +441,7 @@ class ForwardSendStrategy(SendStrategy):
     ) -> SendAttemptResult:
         """Send forward nodes and expose whether fallback is safe."""
         try:
+            await _send_reply_notice(self._context, event)
             platform_name = getattr(getattr(event, "platform", None), "name", "")
             if auto_revoke and is_onebot_like_platform(platform_name):
                 attempted, raw_result = await self._send_nodes_raw(event, nodes)
@@ -502,6 +513,16 @@ class ForwardSendStrategy(SendStrategy):
             "send_private_forward_msg",
             {"user_id": target_id, "messages": messages},
         )
+
+
+async def _send_reply_notice(context: Any, event: AstrMessageEvent) -> None:
+    """文件和合并转发使用外部提醒，避免 @ 混入附件或转发节点。"""
+    if needs_reply_mention(context, event):
+        result = await DirectSendStrategy(context).send_with_status(
+            event, [Comp.Plain("请查收文件或合并转发消息。")]
+        )
+        if not result.accepted:
+            raise RuntimeError(result.reason)
 
 
 def resolve_send_mode(
