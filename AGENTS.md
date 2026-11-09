@@ -22,6 +22,6 @@
 - 图片与文件发送、传输和撤回：`src/infrastructure/sending/`。
 - 配置界面：`_conf_schema.json`；配置模型与错误文案：`src/shared/config/`；迁移：`src/infrastructure/config/`。
 - 运行数据存储：`src/infrastructure/persistence/`；发送缓存：`src/shared/send_cache.py`。
-- 运势卡片模板：`src/template/`；集成测试：`tests/integration/`。
+- 运势卡片模板：`src/template/`；测试：`tests/`。
 
 完整文档索引见 [docs/README.md](docs/README.md)。

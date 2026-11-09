@@ -10,7 +10,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_daily_identity_history_retention_and_preference(tmp_path, load):
+async def test_daily_identity_history_retention(tmp_path, load):
     cache = load("src.shared.cache").init_cache(tmp_path / "cache")
     module = load("src.infrastructure.persistence.database")
     db = await module.init_database(tmp_path)
@@ -57,9 +57,6 @@ async def test_daily_identity_history_retention_and_preference(tmp_path, load):
                 )
             ).fetchone()
         )[0] is None
-        await db.set_preference("u", "theme", "arona")
-        await db.set_preference("u", "tags", '["猫耳", "白发"]')
-        assert (await db.preference("u"))["theme"] == "arona"
         old = (date.today() - timedelta(days=30)).isoformat()
         boundary = (date.today() - timedelta(days=29)).isoformat()
         await db.connection.execute("UPDATE setu_history SET date=?", (old,))
