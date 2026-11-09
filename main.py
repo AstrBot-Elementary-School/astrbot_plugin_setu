@@ -247,9 +247,6 @@ class SetuPlugin(Star):
         self, event: AstrMessageEvent, count: str = "1", *, tags: GreedyStr
     ) -> AsyncGenerator[Any, None]:
         """/色图 [count] [tags...]"""
-        if _setu_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
         async for result in _setu_handler.setu_command(event, count, tags=tags):
             yield result
 
@@ -258,9 +255,6 @@ class SetuPlugin(Star):
         self, event: AstrMessageEvent, *, tags: GreedyStr
     ) -> AsyncGenerator[Any, None]:
         """获取可选标签的随机本子 PDF。"""
-        if _setu_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
         async for result in _setu_handler.random_doujinshi_command(event, tags=tags):
             yield result
 
@@ -271,9 +265,6 @@ class SetuPlugin(Star):
         self, event: AstrMessageEvent
     ) -> AsyncGenerator[Any, None]:
         """今日运势 / jrys"""
-        if _fortune_handler is None:
-            yield event.plain_result("插件未初始化")
-            return
         async for result in _fortune_handler.fortune_command(event):
             yield result
 

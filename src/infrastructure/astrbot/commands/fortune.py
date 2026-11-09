@@ -53,8 +53,6 @@ class FortuneCommandHandler:
                 del self.locks[key]
 
     async def _access(self, event):
-        if not get_config().fortune.enabled:
-            raise ValueError("今日运势已关闭。")
         if not AccessControlService(get_access_control_repo()).check_access(
             "fortune", get_event_session_identity(event).session_id
         ):
