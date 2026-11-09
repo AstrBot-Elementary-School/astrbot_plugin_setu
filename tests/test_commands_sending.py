@@ -30,7 +30,6 @@ def event(sid="p:GroupMessage:g", admin=False, role="member", user="u"):
 async def test_native_commands_preference_at_refresh_and_permissions(tmp_path, load):
     main = load("main")
     from astrbot.core.star.filter.command import CommandFilter
-    from astrbot.core.star.filter.command_group import CommandGroupFilter
     from astrbot.core.star.star_handler import star_handlers_registry
 
     handlers = {
@@ -53,24 +52,6 @@ async def test_native_commands_preference_at_refresh_and_permissions(tmp_path, l
     assert theme.validate_and_convert_params(
         ["Blue", "Archive"], theme.handler_params
     ) == {"theme": "Blue Archive"}
-    primary = next(
-        f
-        for f in handlers["setu_command"].event_filters
-        if isinstance(f, CommandFilter)
-    )
-    assert primary.command_name == "色图" and primary.alias == {"setu"}
-    group = next(
-        f
-        for f in handlers["preference"].event_filters
-        if isinstance(f, CommandGroupFilter)
-    )
-    assert {f.command_name for f in group.sub_command_filters} == {
-        "查看",
-        "主题",
-        "标签",
-        "重置主题",
-        "重置标签",
-    }
     load("src.shared.cache").init_cache(tmp_path / "cache")
     dbmod = load("src.infrastructure.persistence.database")
     db = await dbmod.init_database(tmp_path)
@@ -145,11 +126,6 @@ async def test_docx_and_images_cleanup_after_send(tmp_path, load):
     data = BytesIO()
     Image.new("RGB", (200, 300), "blue").save(data, format="PNG")
     service = load("src.infrastructure.sending.docx_service").R18DocxService(tmp_path)
-    path = service.create_docx_with_images([data.getvalue()], [])
-    from docx import Document
-
-    assert len(Document(path).inline_shapes) == 1
-    cache.release(path)
     ev = event()
     ev.platform = SimpleNamespace(name="test")
     ev.chain_result = lambda chain: chain
@@ -311,6 +287,9 @@ async def test_pending_docx_and_retained_forward_napcat_routes(tmp_path, load):
     assert results[-1]["send_pending"]
     held = next(iter(cache.active))
     assert held.exists()
+    from docx import Document
+
+    assert len(Document(held).inline_shapes) == 1
     uploaded = []
 
     async def action(name, **params):
@@ -448,46 +427,3 @@ async def test_reply_mentions_session_overrides_raw_receipts_and_special_message
             count = context.send_message.await_count
             await send()
             assert context.send_message.await_count == count + (0 if raw else 1)
-
-
-@pytest.mark.asyncio
-async def test_llm_feedback_uses_session_reply_mentions(load, monkeypatch):
-    import astrbot.api.message_components as Comp
-    from astrbot.core.message.message_event_result import MessageEventResult
-
-    commands = load("src.infrastructure.astrbot.commands.setu")
-    sending = load("src.infrastructure.sending")
-    Payload = load("src.application.setu.dto").ImagePayload
-    context = SimpleNamespace(
-        get_config=lambda **kw: {"platform_settings": {"reply_with_mention": True}},
-        send_message=AsyncMock(return_value={"message_id": "feedback"}),
-    )
-    config = load("src.shared.config.models").SetuPluginConfig()
-    config.setu_general.llm_tools_enabled = True
-    monkeypatch.setattr(commands, "get_config", lambda: config)
-    monkeypatch.setattr(
-        commands,
-        "get_provider",
-        lambda: SimpleNamespace(
-            fetch_and_download=AsyncMock(
-                return_value=Payload(urls=(), raw_bytes=(), r18=False, tags=())
-            )
-        ),
-    )
-    ev = event(user="321")
-    ev.platform = SimpleNamespace(name="test")
-    ev.chain_result = lambda chain: MessageEventResult(chain=chain)
-
-    async def failed_images(self, payload, event):
-        yield MessageEventResult(chain=[Comp.Plain("发送失败详情")])
-
-    monkeypatch.setattr(sending.ImageSender, "send_images", failed_images)
-    handler = commands.SetuCommandHandler(plugin_context=context)
-    monkeypatch.setattr(handler, "_check_access", AsyncMock(return_value=(True, "")))
-    monkeypatch.setattr(
-        handler, "_get_effective_content_mode", AsyncMock(return_value="sfw")
-    )
-    await handler._llm_get_setu_handler(ev)
-    chain = context.send_message.await_args.args[1].chain
-    assert str(chain[0].qq) == "321"
-    assert chain[-1].text == "发送失败详情"

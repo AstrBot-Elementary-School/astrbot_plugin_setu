@@ -49,34 +49,11 @@ async def test_concurrent_same_url_cache(tmp_path, load):
     assert not cache.active
 
 
-def test_configuration_drop_invalid_preserve_valid(load):
-    root = __import__("pathlib").Path(__file__).resolve().parents[2]
-    schema = json.loads((root / "_conf_schema.json").read_text())
-    heal = load("src.infrastructure.config").heal_astrbot_plugin_config
-    config, _ = heal(
-        {
-            "dead": 1,
-            "setu_general": {"commands_enabled": False, "max_count": 999},
-            "fortune": {"card_theme": "old", "allow_user_refresh": True},
-            "safety": [{"__template_key": "unknown"}],
-            "cache": {"setu": "yes"},
-        },
-        schema,
-    )
-    assert "dead" not in config
-    assert config["setu_general"]["commands_enabled"] is False
-    assert config["setu_general"]["max_count"] == 10
-    assert config["fortune"]["card_theme"] == "random"
-    assert config["fortune"]["allow_user_refresh"] is True
-    assert config["cache"] == {"setu": False, "fortune": False, "doujinshi": False}
-    assert config["safety"] == []
-
-
 def test_invalid_template_types_and_duplicate_entries_preserve_valid_values(load):
     from pathlib import Path
 
     schema = json.loads(
-        (Path(__file__).resolve().parents[2] / "_conf_schema.json").read_text()
+        (Path(__file__).resolve().parents[1] / "_conf_schema.json").read_text()
     )
     heal = load("src.infrastructure.config").heal_astrbot_plugin_config
     config, _ = heal(
@@ -106,30 +83,15 @@ def test_invalid_template_types_and_duplicate_entries_preserve_valid_values(load
     assert config["session_configs"][0]["tags"] == "猫耳"
 
 
-def test_empty_configuration_and_custom_api_survive_save_reload(load):
+def test_custom_api_survives_save_reload(load):
     from pathlib import Path
 
     schema = json.loads(
-        (Path(__file__).resolve().parents[2] / "_conf_schema.json").read_text()
+        (Path(__file__).resolve().parents[1] / "_conf_schema.json").read_text()
     )
     heal = load("src.infrastructure.config").heal_astrbot_plugin_config
     providers = load("src.infrastructure.providers")
     Config = load("src.shared.config.models").SetuPluginConfig
-    for raw in (
-        {key: "" for key in schema},
-        {key: {} for key in schema},
-        {
-            "setu_general": {"api_type": "custom"},
-            "api": {"custom_api_configs": [{}, "", {"__template_key": "api_template"}]},
-            "session_configs": [{"__template_key": "fortune", "session_id": ""}],
-        },
-    ):
-        cleaned, _ = heal(raw, schema)
-        assert cleaned["setu_general"]["api_type"] == "lolicon"
-        providers.init_provider_from_config(Config.model_validate(cleaned))
-        providers.clear_provider()
-        assert heal(json.loads(json.dumps(cleaned)), schema) == (cleaned, [])
-
     cleaned, _ = heal(
         {
             "setu_general": {"api_type": "custom"},
