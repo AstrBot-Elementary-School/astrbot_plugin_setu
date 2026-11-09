@@ -519,7 +519,7 @@ async def _send_reply_notice(context: Any, event: AstrMessageEvent) -> None:
     """文件和合并转发使用外部提醒，避免 @ 混入附件或转发节点。"""
     if needs_reply_mention(context, event):
         result = await DirectSendStrategy(context).send_with_status(
-            event, [Comp.Plain("请查收文件或合并转发消息。")]
+            event, [Comp.At(qq=event.get_sender_id(), name=event.get_sender_name())]
         )
         if not result.accepted:
             raise RuntimeError(result.reason)

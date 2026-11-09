@@ -436,6 +436,7 @@ async def test_reply_mentions_session_overrides_raw_receipts_and_special_message
             assert result.message_ids == (("raw",) if raw else ("media",))
             notice = context.send_message.await_args_list[0]
             assert notice.args[0] == ev.unified_msg_origin
+            assert len(notice.args[1].chain) == 1
             ats = [c for c in notice.args[1].chain if isinstance(c, Comp.At)]
             assert len(ats) == 1 and str(ats[0].qq) == "321"
             if not raw:

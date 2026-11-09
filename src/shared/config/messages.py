@@ -14,7 +14,6 @@ class MessagesConfig:
         "access_denied": "当前会话无权使用此功能",
         "send_failed": "图片发送失败，请稍后再试。",
         "rate_limited": "上一个请求还在处理中，请稍候。",
-        "config_not_loaded": "配置未加载",
         "invalid_count": "数量解析失败，图片数量必须在{min_count}-{max_count}之间",
         "fetch_timeout": "获取图片超时，网络可能不稳定，请稍后再试。",
         "fetch_failed": "获取图片失败，请稍后再试",

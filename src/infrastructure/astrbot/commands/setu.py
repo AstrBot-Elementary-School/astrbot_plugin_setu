@@ -150,11 +150,6 @@ class SetuCommandHandler:
         self, event: AstrMessageEvent, raw_tags: str
     ) -> AsyncGenerator[Any, None]:
         config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
         if not config.delivery.doujinshi_enabled:
             yield event.plain_result(
                 self._message("feature_disabled", feature="随机本子")
@@ -262,11 +257,6 @@ class SetuCommandHandler:
     ) -> AsyncGenerator[Any, None]:
         """Internal handler for /setu command."""
         config = get_config()
-        if not config:
-            if result := self._plain(event, self._message("config_not_loaded")):
-                yield result
-            return
-
         has_perm, msg = await self._check_access(event, config)
         if not has_perm:
             if result := self._plain(event, msg):
@@ -322,11 +312,6 @@ class SetuCommandHandler:
     ) -> str:
         """LLM tool handler for getting Setu images."""
         config = get_config()
-        if not config:
-            return self._message("config_not_loaded")
-
-        if not config.setu_general.llm_tools_enabled:
-            return self._message("feature_disabled", feature="LLM 工具")
         has_perm, msg = await self._check_access(event, config)
         if not has_perm:
             return msg
