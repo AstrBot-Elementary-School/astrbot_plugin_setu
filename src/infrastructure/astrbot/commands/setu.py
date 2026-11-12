@@ -242,11 +242,9 @@ class SetuCommandHandler:
             pending = send_result.pending
             if not send_result.accepted:
                 raise RuntimeError(send_result.reason)
-        except Exception as exc:
+        except Exception:
             logger.exception("random doujinshi command failed")
-            if result := self._plain(
-                event, self._message("doujinshi_failed") + f"：{exc}"
-            ):
+            if result := self._plain(event, self._message("doujinshi_failed")):
                 yield result
         finally:
             if generated is not None and not pending:
