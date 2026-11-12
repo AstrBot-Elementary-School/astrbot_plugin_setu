@@ -320,6 +320,42 @@ async def test_pending_docx_and_retained_forward_napcat_routes(tmp_path, load):
 
 
 @pytest.mark.asyncio
+async def test_doujinshi_http_error_details_stay_in_logs(
+    tmp_path, load, monkeypatch, caplog
+):
+    import httpx
+
+    commands = load("src.infrastructure.astrbot.commands.setu")
+    config = load("src.shared.config.models").SetuPluginConfig()
+    monkeypatch.setattr(commands, "get_config", lambda: config)
+    handler = commands.SetuCommandHandler(tmp_path)
+    monkeypatch.setattr(handler, "_check_access", AsyncMock(return_value=(True, "")))
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        return real_client(
+            transport=httpx.MockTransport(lambda req: httpx.Response(404)), **kwargs
+        )
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    results = [
+        result
+        async for result in handler.random_doujinshi_command(
+            event(), tags="明日方舟终末地"
+        )
+    ]
+    assert results == ["随机本子获取或文件生成失败，请稍后再试。"]
+    record = next(
+        record
+        for record in caplog.records
+        if "random doujinshi command failed" in record.message
+    )
+    assert isinstance(record.exc_info[1], httpx.HTTPStatusError)
+    assert "404 Not Found" in caplog.text
+    assert "https://api.atri.rodeo/v1/doujinshi/random?tag=" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_reply_mentions_session_overrides_raw_receipts_and_special_messages(load):
     """真实消息组件贯穿发送边界，保证 @ 设置和媒体回执各自保留。"""
     import astrbot.api.message_components as Comp
@@ -384,15 +420,15 @@ async def test_reply_mentions_session_overrides_raw_receipts_and_special_message
 
     # 提醒失败时保留错误；确认超时时继续发送媒体，避免重复提醒。
     ev = reply_event()
-    file_chain = [Comp.File(file="/tmp/book.pdf", name="book.pdf")]
+    forward = strategies.ForwardSendStrategy(context)
     context.send_message.side_effect = RuntimeError("notice rejected")
-    result = await direct.send_with_status(ev, file_chain, auto_revoke=True)
+    result = await forward.send_with_status(ev, [image], auto_revoke=True)
     assert not result.accepted and "notice rejected" in result.reason
     ev.bot.call_action.assert_not_awaited()
     context.send_message.side_effect = TimeoutError("notice ack lost")
-    result = await direct.send_with_status(ev, file_chain, auto_revoke=True)
+    result = await forward.send_with_status(ev, [image], auto_revoke=True)
     assert result.message_ids == ("raw",)
-    assert len(ev.bot.call_action.await_args.kwargs["message"]) == 1
+    assert len(ev.bot.call_action.await_args.kwargs["messages"]) == 1
     context.send_message.side_effect = None
 
     for raw in (False, True):
@@ -413,11 +449,19 @@ async def test_reply_mentions_session_overrides_raw_receipts_and_special_message
 
             result = await send()
             assert result.message_ids == (("raw",) if raw else ("media",))
-            notice = context.send_message.await_args_list[0]
-            assert notice.args[0] == ev.unified_msg_origin
-            assert len(notice.args[1].chain) == 1
-            ats = [c for c in notice.args[1].chain if isinstance(c, Comp.At)]
-            assert len(ats) == 1 and str(ats[0].qq) == "321"
+            if kind == "forward":
+                notice = context.send_message.await_args_list[0]
+                assert notice.args[0] == ev.unified_msg_origin
+                assert len(notice.args[1].chain) == 1
+                ats = [c for c in notice.args[1].chain if isinstance(c, Comp.At)]
+                assert len(ats) == 1 and str(ats[0].qq) == "321"
+            else:
+                assert context.send_message.await_count == (0 if raw else 1)
+                if raw:
+                    assert [
+                        c["type"]
+                        for c in ev.bot.call_action.await_args.kwargs["message"]
+                    ] == ["file"]
             if not raw:
                 media_chain = context.send_message.await_args.args[1].chain
                 assert len(media_chain) == 1

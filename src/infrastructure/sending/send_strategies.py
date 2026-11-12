@@ -238,11 +238,11 @@ class DirectSendStrategy(SendStrategy):
         """Send images directly and keep timeout separate from confirmed failure."""
         try:
             if any(
-                isinstance(comp, (Comp.File, Comp.Node, Comp.Nodes, Comp.Forward))
+                isinstance(comp, (Comp.Node, Comp.Nodes, Comp.Forward))
                 for comp in chain
             ):
                 await _send_reply_notice(self._context, event)
-            else:
+            elif not any(isinstance(comp, Comp.File) for comp in chain):
                 chain = with_reply_mention(self._context, event, chain)
             send_result = await self._send_message(event, chain, auto_revoke)
             mark_reply_mention(event, chain)
